@@ -10,7 +10,7 @@ The Congressional Bill Tracker provides real-time AI predictions for legislative
 ## Access Options
 
 ### Option 1: Use the Deployed App (Recommended)
-Visit the live dashboard at: https://predictivebilltracker.streamlit.app
+Visit the live dashboard at: https://congressionalbilltracker.streamlit.app
 - No installation required
 - Always up-to-date with latest models
 - Instant access with full functionality

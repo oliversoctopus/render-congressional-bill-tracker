@@ -1,6 +1,6 @@
 # Predictive Bill Tracker Dashboard
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://predictivebilltracker.streamlit.app/)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://congressionalbilltracker.streamlit.app/)
 
 ## Overview
 This project is an AI-powered legislative tracking tool submitted to the **AI4Legislation 2025** competition in the "Legislative Tracking" category. It provides a dashboard to predict the viability and passage probability of U.S. Congressional bills using machine learning models trained on comprehensive data from **6 congresses (113th-118th, 2013-2025)**.
@@ -31,7 +31,7 @@ This video covers: Project motivation, technical architecture, dashboard demo, s
 
 ## Installation & Setup
 ### Option 1
-Open the deployed Streamlit website with preloaded code and dependencies: https://predictivebilltracker.streamlit.app
+Open the deployed Streamlit website with preloaded code and dependencies: https://congressionalbilltracker.streamlit.app
 
 *Note: If the website is closed due to inactivity, click "Yes, get this app back up!" and wait 1-2 minutes for the necessary dependencies to be installed.*
 

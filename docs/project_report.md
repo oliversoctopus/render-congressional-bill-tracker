@@ -183,5 +183,5 @@ predictive-bill-tracker/
 
 ### C. Deployment
 - **Platform**: Streamlit Community Cloud
-- **URL**: https://predictivebilltracker.streamlit.app
+- **URL**: https://congressionalbilltracker.streamlit.app
 - **Availability**: 24/7 with auto-scaling
