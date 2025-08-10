@@ -1,18 +1,18 @@
 # Dashboard Usage Guide
 
 ## Overview
-The Congressional Bill Tracker provides real-time AI predictions for legislative success through an interactive web dashboard.
+The Congressional Bill Tracker provides real-time AI predictions for legislative success using models trained on **76,897 bills from 6 U.S. Congresses (113th-118th, 2013-2025)**.
 
 - **Main Application**: `src/app.py` (Streamlit dashboard)
 - **Data Source**: Congress.gov API via `src/data_fetch.py`
-- **ML Models**: Pre-trained models in `models/` directory
+- **ML Models**: Pre-trained ensemble models with 88-99% ROC-AUC accuracy
 
 ## Access Options
 
 ### Option 1: Use the Deployed App (Recommended)
 Visit the live dashboard at: https://predictivebilltracker.streamlit.app
 - No installation required
-- Always up-to-date
+- Always up-to-date with latest models
 - Instant access with full functionality
 
 ### Option 2: Run Locally
@@ -34,8 +34,9 @@ Visit the live dashboard at: https://predictivebilltracker.streamlit.app
 
 ### Input Parameters
 - **Bill Number**: Enter the numeric identifier (e.g., 1234)
-- **Type**: Select HR (House) or S (Senate)
-- **Congress**: Default is 118th (2023-2024)
+- **Type**: Select HR (House), S (Senate), HJRES, or SJRES
+- **Congress**: Select from 113th-118th (default is 118th)
+  - Note: Model trained on all 6 congresses for maximum accuracy
 
 ### Understanding the Output
 
@@ -54,28 +55,34 @@ Visit the live dashboard at: https://predictivebilltracker.streamlit.app
 
 #### 3. Legislative Timeline
 - Complete chronological action history
-- Paginated display for bills with extensive histories
+- Paginated display for bills with extensive histories (20 actions per page)
 - Download option for CSV export
 - Shows action text, date, and days ago
 
-#### 4. AI Predictions
+#### 4. AI Predictions (Enhanced Accuracy)
 - **Viability Score**: Likelihood of gaining traction (0-100%)
+  - New Bill Model: 88.6% accuracy
+  - Early Stage Model: 99.4% accuracy
+  - Progressive Model: 99.6% accuracy
 - **Passage Score**: Chance of becoming law (for viable bills)
-- **Confidence Intervals**: Model uncertainty ranges
+  - Focused prediction on the 16% of bills deemed viable
+- **Confidence Intervals**: Bootstrap-based uncertainty ranges
 - **Visual Gauges**: Color-coded prediction displays
   - Green (>70%): High likelihood
   - Yellow (30-70%): Moderate chance
   - Red (<30%): Low probability
 
 #### 5. Advanced Features (Optional)
-- **Model Breakdown**: Individual algorithm predictions
-- **Feature Analysis**: Top factors influencing prediction
-- **Similar Bills**: Historical comparison data
+- **Model Breakdown**: Individual predictions from Random Forest, Gradient Boosting, and Logistic Regression
+- **Feature Analysis**: Top factors influencing prediction with importance scores
+- **Similar Bills**: Historical comparison from 6-congress dataset
+- **Viability-to-Passage Correlation**: Visual chart showing historical pass rates by viability score
 
 #### 6. Strategic Recommendations
-- Personalized action items based on current status
+- Data-driven action items based on current status
 - Focus areas for improving bill success
-- Timing considerations
+- Timing considerations based on legislative calendar
+- Historical context from similar bills across 6 congresses
 
 ## Display Options
 Toggle these features via the expandable menu:
@@ -83,32 +90,44 @@ Toggle these features via the expandable menu:
 - Display individual model predictions
 - View feature importance analysis
 - Compare with similar historical bills
+- View viability-passage correlation charts
 
 ## Tips for Best Results
-- Bills with 30+ days of activity provide most accurate predictions
-- Check confidence intervals for prediction reliability
-- Use CSV export for detailed analysis
-- Refresh page to analyze multiple bills
+- **Optimal timing**: Bills with 30+ days of activity provide most accurate predictions (99.6% ROC-AUC)
+- **Early predictions**: Even day-1 predictions achieve 88.6% accuracy
+- **Historical context**: Models trained on 12+ years of data capture long-term patterns
+- **Confidence check**: Always review confidence intervals for prediction reliability
+- **Export options**: Use CSV export for detailed analysis and reporting
+
+## Model Performance by Stage
+| Bill Age | Model Used | ROC-AUC | Accuracy |
+|----------|------------|---------|----------|
+| Day 1 | New Bill | 0.886 | 88.8% |
+| Days 2-30 | Early Stage | 0.994 | 98.5% |
+| Day 30+ | Progressive | 0.996 | 99.1% |
 
 ## Troubleshooting
-- **"Model not found"**: Ensure `models/` directory contains all .pkl files
-- **Slow loading**: First prediction may take 10-15 seconds to load models
-- **No data found**: Verify bill number and congress session
-- **API limits**: Consider using local deployment with API key
+- **"Model not found"**: Ensure `models/` directory contains all optimized component files
+- **Slow initial load**: First prediction loads ~132MB of models (10-15 seconds)
+- **No data found**: Verify bill number and congress session (113th-118th supported)
+- **API limits**: Consider using local deployment with API key for heavy usage
+- **Memory issues**: Models are split into components for efficient loading
+
+## Understanding Model Improvements
+The enhanced 6-congress model offers:
+- **4.5x more training data** (77K vs 16K bills)
+- **Cross-congress validation** ensuring robust predictions
+- **Historical patterns** from different political environments
+- **Congress-aware features** accounting for legislative period differences
 
 ## Deployment
 For your own instance:
 1. Fork the repository
 2. Deploy via [Streamlit Community Cloud](https://streamlit.io/cloud)
 3. Set secrets in Streamlit dashboard for API keys
-```
+4. Models auto-load from optimized component structure
 
-This improved version:
-1. Fixes the pip install command to use requirements.txt
-2. Adds the deployed website option prominently
-3. Provides much clearer structure and formatting
-4. Includes troubleshooting section
-5. Adds color-coding explanation for gauges
-6. Includes API key setup instructions
-7. Provides deployment guidance
-8. Uses better markdown formatting for readability
+## Support
+- **Documentation**: See `/docs` folder for detailed technical documentation
+- **Issues**: Report via GitHub Issues
+- **Contact**: oliver.s.fan@gmail.com
