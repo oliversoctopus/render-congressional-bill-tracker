@@ -1,17 +1,35 @@
 import requests
 import pandas as pd
-from dotenv import load_dotenv
 import os
-import sqlite3
+import streamlit as st
 
-load_dotenv()
-CONGRESS_API_KEY = os.getenv('CONGRESS_API_KEY')
-LEGISCAN_API_KEY = os.getenv('LEGISCAN_API_KEY')  # If using
+# Try to get API key from Streamlit secrets first (for deployed app)
+# If not available, try environment variable (for local development)
+try:
+    # For Streamlit Cloud deployment
+    CONGRESS_API_KEY = st.secrets["CONGRESS_API_KEY"]
+except:
+    # For local development with .env file
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+        CONGRESS_API_KEY = os.getenv('CONGRESS_API_KEY')
+    except:
+        # If no .env file, just try environment variable
+        CONGRESS_API_KEY = os.getenv('CONGRESS_API_KEY')
+
+# Optional: Add a fallback or warning if no API key is found
+if not CONGRESS_API_KEY:
+    st.warning("⚠️ No Congress.gov API key found. The app may have limited functionality.")
+    CONGRESS_API_KEY = ""  # Set empty string to avoid None errors
 
 def fetch_bill_titles(bill_id, congress=118, bill_type='hr'):
     """
     Fetch all titles for a bill
     """
+    if not CONGRESS_API_KEY:
+        return {'short_title': '', 'official_title': '', 'display_title': ''}
+    
     url = f'https://api.congress.gov/v3/bill/{congress}/{bill_type}/{bill_id}/titles?api_key={CONGRESS_API_KEY}'
     response = requests.get(url)
     
@@ -48,6 +66,9 @@ def fetch_bill(bill_id, congress=118, bill_type='hr'):
     """
     Fetch comprehensive bill information including sponsors, committees, and subjects
     """
+    if not CONGRESS_API_KEY:
+        return pd.DataFrame()
+    
     url = f'https://api.congress.gov/v3/bill/{congress}/{bill_type}/{bill_id}?api_key={CONGRESS_API_KEY}'
     response = requests.get(url)
     
@@ -55,86 +76,75 @@ def fetch_bill(bill_id, congress=118, bill_type='hr'):
         data = response.json()
         bill_data = data.get('bill', {})
         
-        # Extract sponsor information - handle list or single sponsor
+        # Extract sponsor information
         sponsors_data = bill_data.get('sponsors', [])
         if isinstance(sponsors_data, dict):
             sponsors_data = [sponsors_data]
         elif not isinstance(sponsors_data, list):
             sponsors_data = []
-            
-        sponsor_names = [s.get('fullName', '') for s in sponsors_data if isinstance(s, dict)]
-        sponsor_parties = [s.get('party', 'Unknown') for s in sponsors_data if isinstance(s, dict)]
-        sponsor_states = [s.get('state', 'Unknown') for s in sponsors_data if isinstance(s, dict)]
         
-        # Count Democrats and Republicans
-        dem_sponsors = sum(1 for p in sponsor_parties if p == 'D')
-        rep_sponsors = sum(1 for p in sponsor_parties if p == 'R')
+        sponsor_info = {}
+        if sponsors_data and isinstance(sponsors_data[0], dict):
+            sponsor_info = {
+                'sponsor_name': sponsors_data[0].get('fullName', ''),
+                'sponsor_party': sponsors_data[0].get('party', ''),
+                'sponsor_state': sponsors_data[0].get('state', ''),
+                'sponsor_district': sponsors_data[0].get('district', '')
+            }
+        else:
+            sponsor_info = {
+                'sponsor_name': '',
+                'sponsor_party': '',
+                'sponsor_state': '',
+                'sponsor_district': ''
+            }
         
-        # Extract committee information - handle various structures
-        committees = bill_data.get('committees', {})
-        committee_names = []
+        # Extract committees
+        committees_data = bill_data.get('committees', {})
+        committee_list = []
         
-        if isinstance(committees, dict):
-            items = committees.get('item', [])
+        if isinstance(committees_data, dict) and 'item' in committees_data:
+            items = committees_data['item']
             if isinstance(items, list):
-                committee_names = [c.get('name', '') for c in items if isinstance(c, dict) and c.get('name')]
-            elif isinstance(items, dict) and items.get('name'):
-                committee_names = [items.get('name')]
-        elif isinstance(committees, list):
-            committee_names = [c.get('name', '') for c in committees if isinstance(c, dict) and c.get('name')]
+                committee_list = items
+            elif isinstance(items, dict):
+                committee_list = [items]
+        elif isinstance(committees_data, list):
+            committee_list = committees_data
         
-        # Extract policy area - handle different structures
-        policy_area_data = bill_data.get('policyArea', {})
-        if isinstance(policy_area_data, dict):
-            policy_area = policy_area_data.get('name', 'Unknown')
-        elif isinstance(policy_area_data, str):
-            policy_area = policy_area_data
-        else:
-            policy_area = 'Unknown'
-        
-        # Extract cosponsors count
-        cosponsors = bill_data.get('cosponsors', {})
-        if isinstance(cosponsors, dict):
-            cosponsor_count = cosponsors.get('count', 0)
-        elif isinstance(cosponsors, int):
-            cosponsor_count = cosponsors
-        else:
-            cosponsor_count = 0
-        
-        # Extract latest action
+        # Get latest action
         latest_action = bill_data.get('latestAction', {})
-        if not isinstance(latest_action, dict):
-            latest_action = {}
+        latest_action_text = latest_action.get('text', '') if isinstance(latest_action, dict) else ''
+        latest_action_date = latest_action.get('actionDate', '') if isinstance(latest_action, dict) else ''
         
-        # Extract title information
-        title = bill_data.get('title', '')
+        # Create DataFrame with all information
+        df = pd.DataFrame([{
+            'bill_id': f"{congress}-{bill_type.upper()}-{bill_id}",
+            'bill_number': bill_data.get('number', ''),
+            'bill_type': bill_data.get('type', ''),
+            'title': bill_data.get('title', ''),
+            'short_title': '',  # Will be updated with title fetch
+            'introduced_date': bill_data.get('introducedDate', ''),
+            'latest_action': latest_action_text,
+            'latest_action_date': latest_action_date,
+            'policy_area': bill_data.get('policyArea', {}).get('name', '') if isinstance(bill_data.get('policyArea'), dict) else '',
+            'committees': ', '.join([c.get('name', '') for c in committee_list if isinstance(c, dict)]),
+            'committee_count': len(committee_list),
+            'sponsor_count': len(sponsors_data),
+            'congress': bill_data.get('congress', congress),
+            'origin_chamber': bill_data.get('originChamber', ''),
+            'origin_chamber_code': bill_data.get('originChamberCode', ''),
+            'is_law': bill_data.get('isLaw', False),
+            'laws': ', '.join([str(law.get('number', '')) for law in bill_data.get('laws', []) if isinstance(law, dict)]),
+            **sponsor_info
+        }])
         
-        # Create DataFrame with comprehensive information first
-        df = pd.DataFrame({
-            'bill_id': [f"{congress}-{bill_type.upper()}-{bill_id}"],
-            'title': [title],
-            'short_title': [''],  # Will be filled by separate API call
-            'status': [latest_action.get('text', '')],
-            'action_date': [latest_action.get('actionDate', '')],
-            'sponsors': [', '.join(sponsor_names)],
-            'sponsor_parties': [', '.join(sponsor_parties) if sponsor_parties else 'Unknown'],
-            'sponsor_states': [', '.join(sponsor_states)],
-            'dem_sponsors': [dem_sponsors],
-            'rep_sponsors': [rep_sponsors],
-            'cosponsor_count': [cosponsor_count],
-            'committees': [', '.join(committee_names)],
-            'policy_area': [policy_area],
-            'introduced_date': [bill_data.get('introducedDate', '')],
-            'congress': [bill_data.get('congress', congress)],
-            'type': [bill_data.get('type', bill_type.upper())],
-            'is_bipartisan': [dem_sponsors > 0 and rep_sponsors > 0]
-        })
-        
-        # Fetch titles separately
+        # Get detailed title information
         titles_info = fetch_bill_titles(bill_id, congress, bill_type)
-        if titles_info['short_title']:
-            df.loc[0, 'short_title'] = titles_info['short_title']
-        elif titles_info['display_title']:
+        df.loc[0, 'short_title'] = titles_info['short_title']
+        
+        # If no short title, use display title
+        if not df.loc[0, 'short_title'] and titles_info['display_title']:
             df.loc[0, 'short_title'] = titles_info['display_title']
         
         return df
@@ -146,6 +156,9 @@ def fetch_bill_actions(bill_id, congress=118, bill_type='hr'):
     """
     Fetch all bill actions with pagination support
     """
+    if not CONGRESS_API_KEY:
+        return pd.DataFrame()
+    
     all_actions = []
     offset = 0
     limit = 250  # Maximum allowed by the API
@@ -185,42 +198,29 @@ def fetch_bill_actions(bill_id, congress=118, bill_type='hr'):
                 
                 action = {
                     'bill_id': f"{congress}-{bill_type.upper()}-{bill_id}",
-                    'date': a.get('actionDate'),
+                    'action_date': a.get('actionDate', ''),
                     'text': a.get('text', ''),
                     'type': a.get('type', ''),
                     'action_code': a.get('actionCode', ''),
                     'source_system': a.get('sourceSystem', {}).get('name', '') if isinstance(a.get('sourceSystem'), dict) else '',
-                    'committees': ', '.join(committee_names),
-                    'chamber': a.get('chamber', '')  # Add chamber info
+                    'committees': ', '.join(committee_names)
                 }
                 all_actions.append(action)
             
-            # Check if we got less than the limit - if so, we're done
+            # If we got fewer than the limit, we've reached the end
             if len(actions_data) < limit:
                 break
             
-            # Otherwise, increment offset for next page
+            # Otherwise, continue to the next page
             offset += limit
-            
-            # Safety check to prevent infinite loops
-            if offset > 5000:  # Reasonable upper limit
-                print(f"Warning: Reached maximum offset limit for bill {bill_id}")
-                break
         else:
-            print(f"Error for actions {bill_id} (offset {offset}): {response.status_code}")
+            print(f"Error for actions {bill_id}: {response.status_code}")
             break
     
-    # Create DataFrame and remove any duplicates
+    # Convert to DataFrame
     if all_actions:
         df_actions = pd.DataFrame(all_actions)
-        # Remove duplicates based on date and text
-        df_actions = df_actions.drop_duplicates(subset=['date', 'text'], keep='first')
-        # Sort by date descending
-        df_actions['date_parsed'] = pd.to_datetime(df_actions['date'], errors='coerce')
-        df_actions = df_actions.sort_values('date_parsed', ascending=False)
-        df_actions = df_actions.drop('date_parsed', axis=1)
-        
-        print(f"Fetched {len(df_actions)} unique actions for {bill_type.upper()}.{bill_id}")
+        print(f"Fetched {len(df_actions)} actions for {bill_id}")
         return df_actions
     else:
         print(f"No actions found for {bill_id}")
@@ -230,6 +230,9 @@ def fetch_cosponsors(bill_id, congress=118, bill_type='hr'):
     """
     Fetch detailed cosponsor information
     """
+    if not CONGRESS_API_KEY:
+        return pd.DataFrame(), {}
+    
     url = f'https://api.congress.gov/v3/bill/{congress}/{bill_type}/{bill_id}/cosponsors?api_key={CONGRESS_API_KEY}'
     response = requests.get(url)
     
@@ -279,6 +282,9 @@ def fetch_subjects(bill_id, congress=118, bill_type='hr'):
     """
     Fetch bill subjects
     """
+    if not CONGRESS_API_KEY:
+        return {'subjects': [], 'policy_area': 'Unknown', 'subject_count': 0}
+    
     url = f'https://api.congress.gov/v3/bill/{congress}/{bill_type}/{bill_id}/subjects?api_key={CONGRESS_API_KEY}'
     response = requests.get(url)
     
@@ -326,6 +332,9 @@ def fetch_text_versions(bill_id, congress=118, bill_type='hr'):
     """
     Fetch available text versions of the bill
     """
+    if not CONGRESS_API_KEY:
+        return pd.DataFrame()
+    
     url = f'https://api.congress.gov/v3/bill/{congress}/{bill_type}/{bill_id}/text?api_key={CONGRESS_API_KEY}'
     response = requests.get(url)
     
@@ -368,6 +377,38 @@ def fetch_text_versions(bill_id, congress=118, bill_type='hr'):
         print(f"Error for text versions {bill_id}: {response.status_code}")
         return pd.DataFrame()
 
+def fetch_comprehensive_bill_data(bill_id, congress=118, bill_type='hr'):
+    """
+    Fetch all available data for a bill
+    """
+    if not CONGRESS_API_KEY:
+        return None
+    
+    # Get basic bill info
+    bill_df = fetch_bill(bill_id, congress, bill_type)
+    
+    if bill_df.empty:
+        return None
+    
+    # Get additional data
+    actions_df = fetch_bill_actions(bill_id, congress, bill_type)
+    cosponsors_df, party_breakdown = fetch_cosponsors(bill_id, congress, bill_type)
+    subjects_data = fetch_subjects(bill_id, congress, bill_type)
+    text_versions_df = fetch_text_versions(bill_id, congress, bill_type)
+    
+    # Combine all data
+    result = {
+        'bill': bill_df,
+        'actions': actions_df,
+        'cosponsors': cosponsors_df,
+        'party_breakdown': party_breakdown,
+        'subjects': subjects_data,
+        'text_versions': text_versions_df
+    }
+    
+    return result
+
+# Keep the public comments function unchanged
 def fetch_public_comments(docket_id='CMS-2024-0001'):
     """
     Fetch public comments (unchanged from original)
@@ -383,122 +424,3 @@ def fetch_public_comments(docket_id='CMS-2024-0001'):
     else:
         print(f"Error for docket {docket_id}: {response.status_code}")
         return pd.DataFrame()
-
-def fetch_comprehensive_bill_data(bill_id, congress=118, bill_type='hr'):
-    """
-    Fetch all available data for a bill
-    """
-    # Get basic bill info
-    bill_df = fetch_bill(bill_id, congress, bill_type)
-    
-    if bill_df.empty:
-        return None
-    
-    # Get additional data
-    actions_df = fetch_bill_actions(bill_id, congress, bill_type)
-    cosponsors_df, party_breakdown = fetch_cosponsors(bill_id, congress, bill_type)
-    subjects_data = fetch_subjects(bill_id, congress, bill_type)
-    text_versions_df = fetch_text_versions(bill_id, congress, bill_type)
-    
-    # Calculate original cosponsor count
-    original_cosponsor_count = 0
-    if not cosponsors_df.empty and 'is_original' in cosponsors_df.columns:
-        original_cosponsor_count = cosponsors_df['is_original'].sum()
-    
-    # Compile comprehensive data
-    comprehensive_data = {
-        'bill_info': bill_df,
-        'actions': actions_df,
-        'cosponsors': cosponsors_df,
-        'cosponsor_party_breakdown': party_breakdown,
-        'subjects': subjects_data,
-        'text_versions': text_versions_df,
-        'metrics': {
-            'total_actions': len(actions_df),
-            'total_cosponsors': len(cosponsors_df),
-            'original_cosponsor_count': original_cosponsor_count,
-            'dem_cosponsors': party_breakdown.get('D', 0),
-            'rep_cosponsors': party_breakdown.get('R', 0),
-            'ind_cosponsors': party_breakdown.get('I', 0),
-            'bipartisan_score': calculate_bipartisan_score(bill_df, party_breakdown),
-            'days_since_introduction': calculate_days_active(bill_df),
-            'committee_count': len(bill_df['committees'].values[0].split(',')) if bill_df['committees'].values[0] else 0,
-            'dem_sponsors': bill_df['dem_sponsors'].values[0] if not bill_df.empty else 0,
-            'rep_sponsors': bill_df['rep_sponsors'].values[0] if not bill_df.empty else 0,
-            'total_sponsors': (bill_df['dem_sponsors'].values[0] + bill_df['rep_sponsors'].values[0]) if not bill_df.empty else 1,
-            'dem_total': bill_df['dem_sponsors'].values[0] + party_breakdown.get('D', 0) if not bill_df.empty else 0,
-            'rep_total': bill_df['rep_sponsors'].values[0] + party_breakdown.get('R', 0) if not bill_df.empty else 0,
-            'party_dominance': abs((bill_df['dem_sponsors'].values[0] + party_breakdown.get('D', 0)) - 
-                                 (bill_df['rep_sponsors'].values[0] + party_breakdown.get('R', 0))) / 
-                              max((bill_df['dem_sponsors'].values[0] + bill_df['rep_sponsors'].values[0] + 
-                                   len(cosponsors_df)), 1) if not bill_df.empty else 0
-        }
-    }
-    
-    return comprehensive_data
-
-def calculate_bipartisan_score(bill_df, party_breakdown):
-    """
-    Calculate a bipartisan score based on sponsor and cosponsor party distribution
-    """
-    total_d = bill_df['dem_sponsors'].values[0] + party_breakdown.get('D', 0)
-    total_r = bill_df['rep_sponsors'].values[0] + party_breakdown.get('R', 0)
-    total = total_d + total_r
-    
-    if total == 0:
-        return 0
-    
-    # Score is higher when party distribution is more even
-    minority_party = min(total_d, total_r)
-    bipartisan_score = (minority_party / total) * 2  # Max score of 1.0 when 50/50
-    
-    return bipartisan_score
-
-def calculate_days_active(bill_df):
-    """
-    Calculate days since bill introduction
-    """
-    from datetime import datetime
-    
-    introduced_date = bill_df['introduced_date'].values[0]
-    if introduced_date:
-        try:
-            intro_date = pd.to_datetime(introduced_date)
-            days_active = (datetime.now() - intro_date).days
-            return days_active
-        except:
-            return 0
-    return 0
-
-# Only run this part if the script is executed directly (not imported)
-if __name__ == "__main__":
-    # Fetch multiple bills
-    bill_ids = list(range(1, 51)) + [f'S{i}' for i in range(1, 21)]  # H.R.1-50, S.1-20
-    bill_dfs = []
-    actions_dfs = []
-    for bid in bill_ids:
-        bill_df = fetch_bill(bid)
-        if not bill_df.empty:
-            bill_dfs.append(bill_df)
-        actions_df = fetch_bill_actions(bid)
-        if not actions_df.empty:
-            actions_dfs.append(actions_df)
-
-    all_bills = pd.concat(bill_dfs, ignore_index=True)
-    all_actions = pd.concat(actions_dfs, ignore_index=True)
-    comments_data = fetch_public_comments()
-
-    # Save with UTF-8
-    all_bills.to_csv('data/sample_bill.csv', index=False, encoding='utf-8')
-    all_actions.to_csv('data/bill_actions.csv', index=False, encoding='utf-8')
-    if not comments_data.empty:
-        comments_data.to_csv('data/public_comments.csv', index=False, encoding='utf-8')
-    else:
-        pd.DataFrame({'comment': ['No comments found']}).to_csv('data/public_comments.csv', index=False, encoding='utf-8')
-
-    # Store in SQLite
-    conn = sqlite3.connect('data/bills.db')
-    all_bills.to_sql('bills', conn, if_exists='append')
-    all_actions.to_sql('actions', conn, if_exists='append')
-    comments_data.to_sql('comments', conn, if_exists='append')
-    conn.close()
