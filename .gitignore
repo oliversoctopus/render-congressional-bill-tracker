@@ -1,5 +1,9 @@
 # Other ignored
 *.db
+118th_congress_models/
+backup_data/
+118th_congress_app.py
+file_structure.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
