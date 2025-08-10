@@ -65,7 +65,7 @@ For data extraction and model training, see [docs/data.md](docs/data.md) and [do
 - **Trained on ~77,000 bills from 6 congresses**; handles class imbalance with calibration.
 - Saved in `models/` as optimized split PKL components for efficient loading.
 - **Improved performance**: ROC-AUC scores of 0.88-0.99 across different model stages.
-- Details: See [docs/model_training.md](docs/model_training.md).
+- Details: See [docs/model_training.md](docs/model_training.md) and [docs/model_architecture.md](docs/model_architecture.md).
 
 ## Ethical Considerations
 See [docs/ethics.md](docs/ethics.md) for bias mitigation, transparency, and societal impact.
