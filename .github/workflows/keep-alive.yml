@@ -1,0 +1,42 @@
+name: Keep Apps Active
+
+on:
+  schedule:
+    # Runs at 00:00 UTC every 3 days
+    - cron: '0 0 */3 * *'
+  
+  # Allows manual triggering from GitHub Actions tab
+  workflow_dispatch:
+
+jobs:
+  ping-apps:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Ping Streamlit App
+        run: |
+          echo "Pinging Streamlit app..."
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://predictivebilltracker.streamlit.app)
+          echo "Response code: $response"
+          if [ $response -eq 200 ] || [ $response -eq 302 ]; then
+            echo "✅ Streamlit app is active"
+          else
+            echo "⚠️ Unexpected response code: $response"
+          fi
+      
+      # Optional: Add a delay between pings
+      - name: Wait between pings
+        run: sleep 5
+      
+      # Optional: Send notification on failure (using GitHub Issues)
+      - name: Create issue on failure
+        if: failure()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: 'Keep-Alive Ping Failed',
+              body: 'The automated ping to keep apps active has failed. Check the workflow logs for details.'
+            })
