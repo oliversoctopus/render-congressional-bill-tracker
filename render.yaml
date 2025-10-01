@@ -4,7 +4,7 @@ services:
     name: congressional-bill-tracker
     env: python
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "streamlit run src/app.py --server.port $PORT --server.headless true --server.enableCORS false"
+    startCommand: "streamlit run src/app.py --server.port $PORT --server.headless true"
     envVars:
       - key: PYTHON_VERSION
         value: 3.12
