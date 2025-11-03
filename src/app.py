@@ -350,7 +350,7 @@ if bill_input:
                 st.dataframe(
                     timeline_df.iloc[start_idx:end_idx],
                     hide_index=True,
-                    use_container_width=True,
+                    width='stretch',
                     height=min(700, (end_idx - start_idx) * 35 + 35)
                 )
                 
@@ -358,12 +358,12 @@ if bill_input:
                 col1, col2, col3, col4, col5 = st.columns([1, 1, 2, 1, 1])
                 
                 with col1:
-                    if st.button('⏮️ First', key='timeline_first', use_container_width=True):
+                    if st.button('⏮️ First', key='timeline_first', width='stretch'):
                         st.session_state.leg_timeline_page = 0
                         st.rerun()
                 
                 with col2:
-                    if st.button('◀️ Prev', key='timeline_prev', use_container_width=True, 
+                    if st.button('◀️ Prev', key='timeline_prev', width='stretch', 
                                 disabled=(st.session_state.leg_timeline_page == 0)):
                         st.session_state.leg_timeline_page -= 1
                         st.rerun()
@@ -384,13 +384,13 @@ if bill_input:
                         st.rerun()
                 
                 with col4:
-                    if st.button('Next ▶️', key='timeline_next', use_container_width=True,
+                    if st.button('Next ▶️', key='timeline_next', width='stretch',
                                 disabled=(st.session_state.leg_timeline_page >= total_pages - 1)):
                         st.session_state.leg_timeline_page += 1
                         st.rerun()
                 
                 with col5:
-                    if st.button('Last ⏭️', key='timeline_last', use_container_width=True):
+                    if st.button('Last ⏭️', key='timeline_last', width='stretch'):
                         st.session_state.leg_timeline_page = total_pages - 1
                         st.rerun()
                 
@@ -402,7 +402,7 @@ if bill_input:
                 st.dataframe(
                     timeline_df,
                     hide_index=True,
-                    use_container_width=True,
+                    width='stretch',
                     height=min(700, len(timeline_df) * 35 + 35)
                 )
             
@@ -846,7 +846,7 @@ if bill_input:
                         plot_bgcolor="rgba(0,0,0,0)"
                     )
                     
-                    st.plotly_chart(fig_viability, use_container_width=True)
+                    st.plotly_chart(fig_viability, width='stretch')
                     
                     # Clear PASS/FAIL indicator
                     is_viable = ensemble_viability >= 0.5
@@ -941,7 +941,7 @@ if bill_input:
                             plot_bgcolor="rgba(0,0,0,0)"
                         )
                         
-                        st.plotly_chart(fig_passage, use_container_width=True)
+                        st.plotly_chart(fig_passage, width='stretch')
                         
                         # Clear PASS/FAIL indicator for passage
                         if ensemble_passage >= 0.7:
@@ -1081,7 +1081,7 @@ if bill_input:
                     )
                     fig_breakdown.update_yaxes(tickformat='.0%', range=[0, 1])
                     fig_breakdown.update_layout(height=400)
-                    st.plotly_chart(fig_breakdown, use_container_width=True)
+                    st.plotly_chart(fig_breakdown, width='stretch')
                 
                 # Feature importance
                 if show_feature_analysis:
