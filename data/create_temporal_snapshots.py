@@ -465,7 +465,7 @@ def main():
     print(f"{'='*70}")
     print(f"Total time: {elapsed:.1f} minutes")
     print(f"Output: {OUTPUT_FILE.absolute()}")
-    print(f"\nNext step: Update and run models/model.ipynb to train models on temporal snapshots")
+    print(f"\nNext step: Update and run models/model.py to train models on temporal snapshots")
     print(f"{'='*70}")
 
 
