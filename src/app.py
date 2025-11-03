@@ -95,6 +95,20 @@ with st.expander("📊 Display Options"):
 
 if bill_input:
     try:
+        # Congress end dates for detecting ended congresses
+        CONGRESS_END_DATES = {
+            113: datetime(2015, 1, 3),
+            114: datetime(2017, 1, 3),
+            115: datetime(2019, 1, 3),
+            116: datetime(2021, 1, 3),
+            117: datetime(2023, 1, 3),
+            118: datetime(2025, 1, 3),
+            119: datetime(2027, 1, 3),  # Future
+            120: datetime(2029, 1, 3),  # Future
+        }
+
+        congress_ended = datetime.now() > CONGRESS_END_DATES.get(congress, datetime(2099, 1, 1))
+
         # Fetch bill data
         with st.spinner('Fetching bill information...'):
             comprehensive_data = fetch_comprehensive_bill_data(
@@ -116,7 +130,10 @@ if bill_input:
             actions_df['date'] = pd.to_datetime(actions_df['date'])
             first_action = actions_df['date'].min()
             last_action = actions_df['date'].max()
-            days_active = (datetime.now() - first_action).days
+            # FIXED: Use last_action - first_action (matches training data)
+            # Training uses: (latest_action_date - introduced_date)
+            days_active = (last_action - first_action).days
+            days_active = max(1, min(days_active, 730))  # Match training clip (1-730 days)
             days_since_last_action = (datetime.now() - last_action).days
         else:
             days_active = 1
@@ -163,11 +180,51 @@ if bill_input:
                     st.write(f"**Full Title:** {df['title'].values[0]}")
                 elif 'official_title' in df.columns:
                     st.write(f"**Full Title:** {df['official_title'].values[0]}")
-                
+
                 st.info("💡 If this is not the bill you're looking for, please verify the bill number and congress session.")
         else:
             st.subheader(f"Bill Analysis: {bill_type.upper()}.{bill_input}")
-        
+
+        # Educational mode for ended congresses
+        simulate_date = None
+        if congress_ended:
+            st.error(f"⚠️ **The {congress}th Congress ended on {CONGRESS_END_DATES[congress].strftime('%B %d, %Y')}**")
+            st.error("This bill can no longer become law. Bills that do not pass in their congress session automatically die.")
+
+            st.info("📚 **Educational Mode**: Below shows what the model would have predicted at different points during the congress.")
+
+            # Let user select a historical date to simulate
+            if not df.empty and 'introduced_date' in df.columns:
+                min_date = pd.to_datetime(df['introduced_date'].values[0]).date()
+                max_date = min(last_action.date() if not actions_df.empty else CONGRESS_END_DATES[congress].date(),
+                              CONGRESS_END_DATES[congress].date())
+
+                simulate_date = st.date_input(
+                    "Select a date to simulate predictions (as if that were 'today'):",
+                    min_value=min_date,
+                    max_value=max_date,
+                    value=max_date,
+                    help="Choose a historical date to see what the model would have predicted at that point in time"
+                )
+
+                # Recalculate days_active and days_since_last_action based on simulation date
+                if simulate_date:
+                    simulate_datetime = pd.to_datetime(simulate_date)
+
+                    # Filter actions up to simulation date
+                    if not actions_df.empty:
+                        simulated_actions = actions_df[actions_df['date'] <= simulate_datetime]
+                        if not simulated_actions.empty:
+                            sim_first_action = simulated_actions['date'].min()
+                            sim_last_action = simulated_actions['date'].max()
+                            days_active = (sim_last_action - sim_first_action).days
+                            days_active = max(1, min(days_active, 730))
+                            days_since_last_action = (simulate_datetime - sim_last_action).days
+
+                    st.caption(f"🕐 Simulating predictions as if today were **{simulate_date.strftime('%B %d, %Y')}** ({days_active} days of activity, {days_since_last_action} days since last action)")
+
+            st.markdown("---")
+
         # Key metrics
         col1, col2, col3, col4, col5, col6 = st.columns(6)
         
@@ -356,7 +413,7 @@ if bill_input:
         
         st.markdown("---")
         
-        # UPDATED: Load models from optimized split component files
+        # UPDATED: Load models from Google Drive
         @st.cache_resource
         def load_models():
             """Load models from optimized split component files"""
@@ -554,6 +611,9 @@ if bill_input:
                     has_passed_senate = True
             
             # Prepare features
+            # FIXED: Use bill's actual introduction date for temporal features
+            introduced_date = pd.to_datetime(df['introduced_date'].values[0]) if not df.empty and 'introduced_date' in df.columns else datetime.now()
+
             feature_data = {
                 # Basic features
                 'sponsor_party': df['sponsor_parties'].values[0] if not df.empty else 'Unknown',
@@ -561,9 +621,9 @@ if bill_input:
                 'sponsor_count': len(df['sponsors'].values[0].split(',')) if not df.empty else 1,
                 'original_cosponsor_count': metrics.get('original_cosponsor_count', 0),
                 'cosponsor_count': df['cosponsor_count'].values[0] if not df.empty else 0,
-                'month_introduced': datetime.now().month,
-                'quarter_introduced': (datetime.now().month - 1) // 3 + 1,
-                'is_election_year': int(datetime.now().year % 4 == 0),
+                'month_introduced': introduced_date.month,
+                'quarter_introduced': (introduced_date.month - 1) // 3 + 1,
+                'is_election_year': int(introduced_date.year % 2 == 0),  # FIXED: %2 not %4 (all elections, not just presidential)
                 'title_length': len(df['short_title'].values[0]) if not df.empty and 'short_title' in df.columns and df['short_title'].values[0] else len(df['title'].values[0]) if not df.empty and 'title' in df.columns and df['title'].values[0] else 100,
                 'title_word_count': len(df['short_title'].values[0].split()) if not df.empty and 'short_title' in df.columns and df['short_title'].values[0] else len(df['title'].values[0].split()) if not df.empty and 'title' in df.columns and df['title'].values[0] else 20,
                 'title_complexity': 0,  # Will be calculated
@@ -603,7 +663,11 @@ if bill_input:
                 
                 # Congress-specific features (new)
                 'congress_numeric': congress,
-                'is_recent_congress': int(congress >= 117)
+                'is_recent_congress': int(congress >= 117),  # Kept for compatibility with old models
+
+                # Abandonment detection features (new - Phase 1)
+                'days_since_last_action': days_since_last_action,
+                'log_days_since_last_action': np.log1p(days_since_last_action)
             }
             
             # Calculate derived features
@@ -907,7 +971,17 @@ if bill_input:
                 with col3:
                     percentile = (1 - overall_chance) * 100
                     st.metric("Percentile Rank", f"Top {100-percentile:.0f}%")
-                
+
+                # Abandonment warning (only for active congresses)
+                if not congress_ended:
+                    if days_since_last_action > 180:
+                        st.warning(f"⚠️ **No Activity in {days_since_last_action} Days**\n\n"
+                                  f"This bill appears to have been abandoned. Last action was **{days_since_last_action} days ago** "
+                                  f"on {last_action.strftime('%B %d, %Y')}. Bills without activity for 6+ months rarely advance.")
+                    elif days_since_last_action > 90:
+                        st.info(f"ℹ️ **Limited Recent Activity**: Last action was {days_since_last_action} days ago "
+                               f"({last_action.strftime('%B %d, %Y')}). Bill may be stalled.")
+
                 # Individual model breakdown
                 if show_model_breakdown:
                     st.subheader("🔍 Individual Model Predictions")

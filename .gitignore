@@ -1,7 +1,6 @@
 # Other ignored
 *.db
-118th_congress_models/
-backup_data/
+backups/
 118th_congress_app.py
 file_structure.txt
 
@@ -211,8 +210,15 @@ cython_debug/
 # Marimo
 marimo/_static/
 marimo/_lsp/
-<<<<<<< HEAD
 __marimo__/
-=======
-__marimo__/
->>>>>>> d966930fd7065fd93729c571da26165f2ac57bf6
+
+# Large data files (keep models <100MB)
+data/bulk_downloads/
+data/temporal/
+data/*.csv
+data/*.png
+data/*.json
+nul
+
+# Keep Python scripts and small reference files
+!data/*.py
