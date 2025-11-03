@@ -20,57 +20,61 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title('📊 Congressional Bill Tracker v4.0 - Advanced Analytics')
-st.markdown("### AI-powered predictions trained on 76,897 bills from 6 Congresses (113-118)")
+st.title('📊 Congressional Bill Tracker v5.0 - Advanced Analytics')
+st.markdown("### AI-powered predictions trained on 273,113 temporal snapshots from 76,854 bills (Congresses 113-118)")
 st.markdown("---")
 
 # Sidebar
 with st.sidebar:
     st.header("📖 About This System")
     st.markdown("""
-    ### Congressional Bill Tracker v4.0
-    
+    ### Congressional Bill Tracker v5.0
+
     **Training Data:**
-    - 📊 76,897 bills analyzed
-    - 🏛️ 6 Congresses (113th-118th)
-    - 📈 2.7% historical pass rate
-    - 🎯 16% viability rate
-    
+    - 📊 273,113 temporal snapshots
+    - 🏛️ 76,854 unique bills
+    - 📅 6 Congresses (113th-118th)
+
+    **Historical Rates (Unique Bills):**
+    - 📈 3.7% pass overall
+    - 🎯 4.9% viable
+    - ✅ 75.4% of viable bills pass
+
     **Model Performance:**
-    - ✅ Up to 99.6% ROC-AUC
+    - ✅ 86.6%-97.9% ROC-AUC
     - ✅ Calibrated probabilities
     - ✅ Ensemble models for stability
     - ✅ Stage-specific predictions
-    - ✅ Optimized file structure
-    
+    - ✅ Temporal snapshot training
+
     ### Model Stages
-    
+
     **🆕 New Bill (Day 1)**
-    - Limited features available
-    - 88.6% ROC-AUC
-    - Focus on sponsor characteristics
-    
+    - 16 basic features
+    - 94.1% viability ROC-AUC
+    - 97.9% passage ROC-AUC
+
     **📈 Early Stage (2-30 days)**
-    - Initial momentum indicators
-    - 99.4% ROC-AUC
-    - Cosponsor growth patterns
-    
+    - 24 extended features
+    - 96.4% viability ROC-AUC
+    - 96.4% passage ROC-AUC
+
     **🔄 Progressive (30+ days)**
-    - Full feature set
-    - 99.6% ROC-AUC
-    - Complete activity history
-    
+    - 41 comprehensive features
+    - 86.6% viability ROC-AUC
+    - 94.4% passage ROC-AUC
+
     ### Understanding Predictions
-    
+
     **Confidence Intervals:**
     - Narrow = Models agree
     - Wide = More uncertainty
     - Shows min/max from ensemble
-    
+
     **Pass Rate Context:**
-    - Historical: 2.7% of all bills
-    - Viable bills: 16.7% pass rate
-    - Varies by Congress (1.7%-3.8%)
+    - Unique bills: 3.7% overall
+    - Viable bills: 75.4% pass rate
+    - Varies by Congress (60.9%-87.1%)
     """)
 
 # Main input
@@ -993,7 +997,7 @@ if bill_input:
                         
                         1. **Probability Calibration**: The ensemble uses isotonic calibration to adjust predictions 
                            based on validation data, making them more realistic.
-                        2. **Class Imbalance**: With only 2.7% of bills passing, calibration often reduces 
+                        2. **Class Imbalance**: With only 3.7% of bills passing, calibration often reduces 
                            overly optimistic predictions.
                         3. **Model Weighting**: The ensemble weights models differently (RF: 40%, GB: 40%, LR: 20%)
                         
@@ -1181,23 +1185,23 @@ if bill_input:
                             data_source = f"{bin_match['bill_count']:,} bills in {bin_match['viability_range']} range"
                         else:
                             # Fallback if no bin matches
-                            estimated_pass_rate = 2.7  # Overall average
+                            estimated_pass_rate = 3.7  # Overall average
                             data_source = "overall average (no specific data for this range)"
-                        
+
                         st.info(f"""
-                        **Based on analysis of 76,897 bills across 6 Congresses (113-118):**
-                        
+                        **Based on analysis of 76,854 unique bills across 6 Congresses (113-118):**
+
                         📊 **Actual Historical Outcomes:**
                         - Bills with viability score ~{ensemble_viability:.1%}: **{estimated_pass_rate:.1f}%** passed
                         - Based on: {data_source}
-                        - This is {estimated_pass_rate/2.7:.1f}x the overall average (2.7%)
-                        
+                        - This is {estimated_pass_rate/3.7:.1f}x the overall average (3.7%)
+
                         ⏱️ **Typical Timeline:**
                         - Average time to passage: ~180 days
                         - Most common failure point: Committee stage
-                        
+
                         📈 **Data Note:**
-                        This estimate comes from actual historical data - we analyzed all 76,897 bills 
+                        This estimate comes from actual historical data - we analyzed all 76,854 unique bills
                         in our training set and calculated real pass rates for each viability score range.
                         """)
                         
@@ -1223,12 +1227,12 @@ if bill_input:
                             estimated_pass_rate = 5.0
                         
                         st.info(f"""
-                        Based on analysis of 76,897 bills across 6 Congresses (113-118):
+                        Based on analysis of 76,854 unique bills across 6 Congresses (113-118):
                         - Bills with similar viability scores: ~{estimated_pass_rate:.1f}% passed (estimate)
                         - Average time to passage: ~180 days
                         - Most common failure point: Committee stage
-                        - Historical context: Only 2.7% of all bills become law
-                        
+                        - Historical context: Only 3.7% of all bills become law
+
                         *Note: Run the viability pass rate analyzer for precise historical data.*
                         """)
         
@@ -1245,6 +1249,6 @@ if bill_input:
 # Footer
 st.markdown("---")
 st.caption("""
-Congressional Bill Tracker v4.0 | AI predictions based on 76,897 bills from 6 Congresses
-Trained on 113th-118th Congress data | Model accuracy: 88.6%-99.6% ROC-AUC
+Congressional Bill Tracker v5.0 | AI predictions based on 273,113 temporal snapshots from 76,854 unique bills
+Trained on 113th-118th Congress data | Model accuracy: 86.6%-97.9% ROC-AUC
 """)

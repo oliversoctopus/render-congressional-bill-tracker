@@ -14,12 +14,15 @@ This system uses a **two-phase prediction pipeline** with **time-aware model sta
 
 1. **Phase 1: Viability Prediction**
    Predicts whether a bill will receive significant legislative activity (committee hearings, floor votes, amendments)
-   - Base rate: 10.0% of bills are viable
+   - **Unique bills:** 4.9% viable (3,763 of 76,854 bills)
+   - **Training snapshots:** 10.0% viable (27,337 of 273,113 snapshots)
 
 2. **Phase 2: Passage Prediction** (Only for viable bills)
    Predicts whether a viable bill will ultimately pass both chambers
-   - Base rate: 80.5% of viable bills pass
-   - Overall passage rate: 8.1% of all bills
+   - **Unique bills:** 75.4% of viable bills pass (2,837 of 3,763), 3.7% overall
+   - **Training snapshots:** 80.5% of viable snapshots pass (21,994 of 27,337), 8.1% overall
+
+**Note:** Snapshot statistics differ from unique bill statistics because successful bills generate more snapshots (they survive longer and reach more time points). Models train on snapshots but predict outcomes for individual bills.
 
 ### Time-Aware Model Stages
 
