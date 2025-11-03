@@ -289,8 +289,8 @@ def train_stage_model(df, target_col, model_name, stage_name, features, use_cali
     # Train ensemble
     ensemble.fit(X_train_selected, y_train, sample_weight=weights_train)
 
-    # Calibrate if needed
-    if use_calibration and pos_rate < 0.3:
+    # Calibrate if needed (for imbalanced datasets at either extreme)
+    if use_calibration and (pos_rate < 0.3 or pos_rate > 0.7):
         print("Calibrating probabilities...")
         calibrated_ensemble = CalibratedClassifierCV(
             ensemble,

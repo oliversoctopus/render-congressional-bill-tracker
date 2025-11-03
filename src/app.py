@@ -434,6 +434,17 @@ if bill_input:
             components = joblib.load(f'{model_dir}/components.pkl')
             ensemble_config = joblib.load(f'{model_dir}/ensemble_config.pkl')
 
+            # Load calibration if exists
+            calibration_path = f'{model_dir}/calibration.pkl'
+            calibrators = None
+            is_calibrated = components['metadata'].get('is_calibrated', False)
+
+            if is_calibrated and os.path.exists(calibration_path):
+                calibration_data = joblib.load(calibration_path)
+                if calibration_data['calibrators']:
+                    # Extract the calibrators (one per CV fold)
+                    calibrators = [cal['calibrator'] for cal in calibration_data['calibrators']]
+
             # Reconstruct ensemble
             ensemble = VotingClassifier(
                 estimators=[
@@ -453,8 +464,28 @@ if bill_input:
                 'scaler': components['scaler'],
                 'selector': components['selector'],
                 'features': components['metadata']['features'],
-                'selected_features': components['metadata']['selected_features']
+                'selected_features': components['metadata']['selected_features'],
+                'is_calibrated': is_calibrated,
+                'calibrators': calibrators
             }
+
+        def apply_calibration(prob, calibrators):
+            """Apply isotonic calibration to a probability using CV-fold calibrators"""
+            if not calibrators:
+                return prob
+
+            # Average predictions from all CV fold calibrators
+            calibrated_probs = []
+            for calibrator in calibrators:
+                try:
+                    calibrated_prob = calibrator.transform([prob])[0]
+                    calibrated_probs.append(calibrated_prob)
+                except:
+                    # If calibration fails, use original probability
+                    calibrated_probs.append(prob)
+
+            # Return average of all calibrated predictions
+            return np.mean(calibrated_probs) if calibrated_probs else prob
 
         # Load metadata only (not models)
         @st.cache_resource
@@ -660,7 +691,11 @@ if bill_input:
             
             # Ensemble prediction - also use DataFrame
             ensemble_viability = viability_model['model'].predict_proba(X_selected_df)[0, 1]
-            
+
+            # Apply calibration if available
+            if viability_model.get('is_calibrated') and viability_model.get('calibrators'):
+                ensemble_viability = apply_calibration(ensemble_viability, viability_model['calibrators'])
+
             # Calculate confidence interval if we have individual models
             if viability_scores:
                 viability_low = min(viability_scores)
@@ -802,7 +837,11 @@ if bill_input:
                         
                         # Use DataFrame for ensemble too
                         ensemble_passage = passage_model['model'].predict_proba(X_passage_selected_df)[0, 1]
-                        
+
+                        # Apply calibration if available
+                        if passage_model.get('is_calibrated') and passage_model.get('calibrators'):
+                            ensemble_passage = apply_calibration(ensemble_passage, passage_model['calibrators'])
+
                         if passage_scores:
                             passage_low = min(passage_scores)
                             passage_high = max(passage_scores)
@@ -913,14 +952,14 @@ if bill_input:
                     with st.expander("ℹ️ Why might ensemble predictions differ from individual models?"):
                         st.markdown("""
                         The ensemble prediction may be outside the range of individual model predictions because:
-                        
-                        1. **Probability Calibration**: The ensemble uses isotonic calibration to adjust predictions 
+
+                        1. **Probability Calibration**: The ensemble uses isotonic calibration to adjust predictions
                            based on validation data, making them more realistic.
-                        2. **Class Imbalance**: With only 3.7% of bills passing, calibration often reduces 
-                           overly optimistic predictions.
+                        2. **Class Imbalance**: Both viability models (~10% positive rate) and passage models
+                           (~80% positive rate) use calibration to correct for extreme class imbalances.
                         3. **Model Weighting**: The ensemble weights models differently (RF: 40%, GB: 40%, LR: 20%)
-                        
-                        Individual models show raw predictions, while the ensemble shows calibrated probabilities 
+
+                        Individual models show raw predictions, while the ensemble shows calibrated probabilities
                         that better reflect historical pass rates.
                         """)
                     
