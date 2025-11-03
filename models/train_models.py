@@ -475,7 +475,7 @@ metadata = {
     'unique_bills': df['bill_id'].nunique(),
     'viable_rate': df['viable'].mean(),
     'passage_rate': df['passed'].mean(),
-    'model_version': '7.0-temporal-snapshots',
+    'model_version': '5.0-temporal-snapshots',
     'improvements': [
         'Trained on temporal snapshots (273K examples from 77K bills)',
         'Hybrid stage filtering to reduce survivorship bias',
