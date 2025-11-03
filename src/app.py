@@ -417,19 +417,53 @@ if bill_input:
         
         st.markdown("---")
         
-        # UPDATED: Load models from Google Drive
+        # Load individual model stages on demand (lazy loading for performance)
         @st.cache_resource
-        def load_models():
-            """Load models from optimized split component files"""
+        def load_single_model(_model_type, _stage):
+            """Load a single model stage (lazy loading)"""
+            import joblib
+            from sklearn.ensemble import VotingClassifier
+
+            model_dir = f'models/{_model_type}_{_stage}'
+
+            if not os.path.exists(model_dir):
+                return None
+
+            # Load components
+            rf_model = joblib.load(f'{model_dir}/rf_model.pkl')
+            components = joblib.load(f'{model_dir}/components.pkl')
+            ensemble_config = joblib.load(f'{model_dir}/ensemble_config.pkl')
+
+            # Reconstruct ensemble
+            ensemble = VotingClassifier(
+                estimators=[
+                    ('rf', rf_model),
+                    ('gb', components['gb_model']),
+                    ('lr', components['lr_model'])
+                ],
+                voting='soft',
+                weights=ensemble_config['weights']
+            )
+            ensemble.estimators_ = [rf_model, components['gb_model'], components['lr_model']]
+            ensemble.classes_ = rf_model.classes_
+            ensemble.le_ = None
+
+            return {
+                'model': ensemble,
+                'scaler': components['scaler'],
+                'selector': components['selector'],
+                'features': components['metadata']['features'],
+                'selected_features': components['metadata']['selected_features']
+            }
+
+        # Load metadata only (not models)
+        @st.cache_resource
+        def load_metadata():
+            """Load metadata only (not models - they load on demand)"""
             try:
-                # Check if models directory exists
-                if not os.path.exists('models'):
-                    st.error("Models directory not found. Please train the models first.")
-                    return None
-                
                 # Load metadata and encoders
                 metadata_package = joblib.load('models/metadata.pkl')
-                
+
                 # Load viability pass rate data if available
                 viability_pass_rates = None
                 viability_pass_rates_fine = None
@@ -437,133 +471,24 @@ if bill_input:
                     viability_pass_rates = pd.read_csv('data/viability_pass_rates.csv')
                 if os.path.exists('data/viability_pass_rates_fine.csv'):
                     viability_pass_rates_fine = pd.read_csv('data/viability_pass_rates_fine.csv')
-                
-                # Function to reconstruct ensemble from components
-                def reconstruct_ensemble(rf_model, gb_model, lr_model, ensemble_config):
-                    """Reconstruct VotingClassifier from individual models and config"""
-                    # Create a custom ensemble that uses pre-fitted models
-                    ensemble = VotingClassifier(
-                        estimators=[
-                            ('rf', rf_model),
-                            ('gb', gb_model),
-                            ('lr', lr_model)
-                        ],
-                        voting=ensemble_config['voting'],
-                        weights=ensemble_config['weights']
-                    )
-                    # Set the fitted flag manually since our estimators are already fitted
-                    ensemble.estimators_ = [rf_model, gb_model, lr_model]
-                    ensemble.named_estimators_ = {
-                        'rf': rf_model,
-                        'gb': gb_model,
-                        'lr': lr_model
-                    }
-                    ensemble.classes_ = rf_model.classes_
-                    ensemble.le_ = None  # Not used for pre-fitted estimators
-                    return ensemble
-                
-                # Function to reconstruct calibrated model if needed
-                def reconstruct_calibrated_model(base_model, calibration_data):
-                    """Reconstruct calibrated model from base model and calibration data"""
-                    # For now, return the base model as calibration reconstruction is complex
-                    # In production, you'd need to properly reconstruct the calibrators
-                    return base_model
-                
-                # Function to load a single model stage from optimized components
-                def load_model_stage_optimized(model_type, stage):
-                    """Load all components for a single model stage from optimized structure"""
-                    model_dir = f'models/{model_type}_{stage}'
-                    
-                    if not os.path.exists(model_dir):
-                        st.error(f"Model directory {model_dir} not found!")
-                        return None
-                    
-                    # Load RF model (separate file)
-                    rf_model = joblib.load(f'{model_dir}/rf_model.pkl')
-                    
-                    # Load combined components
-                    components = joblib.load(f'{model_dir}/components.pkl')
-                    gb_model = components['gb_model']
-                    lr_model = components['lr_model']
-                    scaler = components['scaler']
-                    selector = components['selector']
-                    metadata = components['metadata']
-                    
-                    # Load ensemble config
-                    ensemble_config = joblib.load(f'{model_dir}/ensemble_config.pkl')
-                    
-                    # Reconstruct ensemble
-                    ensemble = reconstruct_ensemble(rf_model, gb_model, lr_model, ensemble_config)
-                    
-                    # Check if calibration exists
-                    final_model = ensemble
-                    if metadata['is_calibrated'] and os.path.exists(f'{model_dir}/calibration.pkl'):
-                        calibration_data = joblib.load(f'{model_dir}/calibration.pkl')
-                        # For simplicity, we'll use the ensemble as final model
-                        # In production, you'd reconstruct the calibrated model properly
-                        final_model = ensemble  # reconstruct_calibrated_model(ensemble, calibration_data)
-                    
-                    # Return model dictionary
-                    return {
-                        'model': final_model,
-                        'ensemble': ensemble,
-                        'rf_model': rf_model,
-                        'gb_model': gb_model,
-                        'lr_model': lr_model,
-                        'scaler': scaler,
-                        'selector': selector,
-                        'features': metadata['features'],
-                        'selected_features': metadata['selected_features'],
-                        'threshold': metadata['threshold'],
-                        'performance': metadata['performance']
-                    }
-                
-                # Load all model stages
-                viability_models = {}
-                passage_models = {}
-                
-                for stage in ['new_bill', 'early_stage', 'progressive']:
-                    # Load viability model
-                    viability_model = load_model_stage_optimized('viability', stage)
-                    if viability_model:
-                        viability_models[stage] = viability_model
-                    else:
-                        st.error(f"Failed to load viability_{stage} model")
-                        return None
-                    
-                    # Load passage model
-                    passage_model = load_model_stage_optimized('passage', stage)
-                    if passage_model:
-                        passage_models[stage] = passage_model
-                    else:
-                        st.error(f"Failed to load passage_{stage} model")
-                        return None
-                
-                # Return complete model package
+
+                # Return metadata only
                 return {
-                    'viability_models': viability_models,
-                    'passage_models': passage_models,
                     'label_encoders': metadata_package['label_encoders'],
-                    'feature_sets': metadata_package['metadata'].get('feature_sets', {}),
                     'metadata': metadata_package['metadata'],
                     'viability_pass_rates': viability_pass_rates,
                     'viability_pass_rates_fine': viability_pass_rates_fine
                 }
-                
             except Exception as e:
-                st.error(f"Error loading models: {str(e)}")
-                import traceback
-                st.code(traceback.format_exc())
+                st.error(f"Error loading metadata: {e}")
                 return None
         
-        model_package = load_models()
-        
-        if model_package:
-            # Extract components
-            viability_models = model_package['viability_models']
-            passage_models = model_package['passage_models']
-            label_encoders = model_package['label_encoders']
-            
+        # Load metadata only (fast)
+        metadata = load_metadata()
+
+        if metadata:
+            label_encoders = metadata['label_encoders']
+
             # Determine model stage
             if days_active <= 1:
                 stage = 'new_bill'
@@ -574,20 +499,18 @@ if bill_input:
             else:
                 stage = 'progressive'
                 stage_name = "🔄 Progressive Model"
+
+            # Load ONLY the needed models (lazy loading for performance)
+            with st.spinner(f"Loading {stage_name}..."):
+                viability_model = load_single_model('viability', stage)
+                passage_model = load_single_model('passage', stage)
+
+            if not viability_model or not passage_model:
+                st.error(f"Failed to load models for stage: {stage}")
+                st.stop()
             
             st.header(f"AI Predictions - {stage_name}")
             st.caption(f"Based on {days_active} days of legislative activity")
-            
-            # Model performance indicator
-            model_perf = viability_models[stage]['performance']
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Model Accuracy", f"{model_perf['accuracy']:.1%}")
-            with col2:
-                st.metric("ROC-AUC Score", f"{model_perf['roc_auc']:.3f}")
-            with col3:
-                reliability = "High" if model_perf['cv_std'] < 0.05 else "Moderate"
-                st.metric("Reliability", reliability)
             
             # Check if bill has already passed House/Senate or become law
             has_passed_house = False
@@ -712,11 +635,7 @@ if bill_input:
             
             # Create DataFrame
             bill_df = pd.DataFrame([feature_data])
-            
-            # Get model components
-            viability_model = viability_models[stage]
-            passage_model = passage_models[stage]
-            
+
             # Prepare features
             X_features = bill_df[viability_model['features']].fillna(0)
             X_features = X_features.replace([np.inf, -np.inf], 0)
@@ -846,7 +765,7 @@ if bill_input:
                         plot_bgcolor="rgba(0,0,0,0)"
                     )
                     
-                    st.plotly_chart(fig_viability, width='stretch')
+                    st.plotly_chart(fig_viability, config={'responsive': True})
                     
                     # Clear PASS/FAIL indicator
                     is_viable = ensemble_viability >= 0.5
@@ -941,7 +860,7 @@ if bill_input:
                             plot_bgcolor="rgba(0,0,0,0)"
                         )
                         
-                        st.plotly_chart(fig_passage, width='stretch')
+                        st.plotly_chart(fig_passage, config={'responsive': True})
                         
                         # Clear PASS/FAIL indicator for passage
                         if ensemble_passage >= 0.7:
@@ -1081,7 +1000,7 @@ if bill_input:
                     )
                     fig_breakdown.update_yaxes(tickformat='.0%', range=[0, 1])
                     fig_breakdown.update_layout(height=400)
-                    st.plotly_chart(fig_breakdown, width='stretch')
+                    st.plotly_chart(fig_breakdown, config={'responsive': True})
                 
                 # Feature importance
                 if show_feature_analysis:
