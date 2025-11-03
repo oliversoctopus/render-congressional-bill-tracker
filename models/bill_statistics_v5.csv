@@ -1,0 +1,10 @@
+metric,count,percentage
+Total Bills (Unique),76854,100%
+Viable Bills (Unique),3763,4.9%
+Passed Bills (Unique),2837,3.7%
+Viable → Passed (Unique),2837,75.4%
+---,---,---
+Total Snapshots,273113,100%
+Viable Snapshots,27337,10.0%
+Passed Snapshots,21994,8.1%
+Viable → Passed (Snapshots),21994,80.5%

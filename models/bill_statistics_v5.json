@@ -1,0 +1,74 @@
+{
+  "unique_bill_stats": {
+    "total_bills": 76854,
+    "viable_bills": 3763,
+    "passed_bills": 2837,
+    "viable_rate": 0.04896296874593385,
+    "passage_rate": 0.036914148905717335,
+    "viable_pass_rate": 0.7539197448844007
+  },
+  "snapshot_stats": {
+    "total_snapshots": 273113,
+    "viable_snapshots": 27337,
+    "passed_snapshots": 21994,
+    "viable_rate": 0.10009410024422126,
+    "passage_rate": 0.08053076931526511,
+    "viable_pass_rate": 0.8045506090646377
+  },
+  "by_congress": [
+    {
+      "congress": 113,
+      "total_bills": 9082,
+      "viable_bills": 432,
+      "passed_bills": 347,
+      "viable_rate": 0.047566615282977315,
+      "passage_rate": 0.03820744329442854,
+      "viable_pass_rate": 0.8032407407407407
+    },
+    {
+      "congress": 114,
+      "total_bills": 10223,
+      "viable_bills": 478,
+      "passed_bills": 406,
+      "viable_rate": 0.04675731194365646,
+      "passage_rate": 0.03971436955883791,
+      "viable_pass_rate": 0.8493723849372385
+    },
+    {
+      "congress": 115,
+      "total_bills": 11413,
+      "viable_bills": 642,
+      "passed_bills": 559,
+      "viable_rate": 0.05625164286340138,
+      "passage_rate": 0.0489792342066065,
+      "viable_pass_rate": 0.8707165109034268
+    },
+    {
+      "congress": 116,
+      "total_bills": 14340,
+      "viable_bills": 701,
+      "passed_bills": 568,
+      "viable_rate": 0.04888423988842399,
+      "passage_rate": 0.0396094839609484,
+      "viable_pass_rate": 0.8102710413694721
+    },
+    {
+      "congress": 117,
+      "total_bills": 15231,
+      "viable_bills": 726,
+      "passed_bills": 442,
+      "viable_rate": 0.04766594445538704,
+      "passage_rate": 0.029019762326833433,
+      "viable_pass_rate": 0.6088154269972452
+    },
+    {
+      "congress": 118,
+      "total_bills": 16565,
+      "viable_bills": 784,
+      "passed_bills": 515,
+      "viable_rate": 0.047328705101116815,
+      "passage_rate": 0.03108964684575913,
+      "viable_pass_rate": 0.6568877551020408
+    }
+  ]
+}
