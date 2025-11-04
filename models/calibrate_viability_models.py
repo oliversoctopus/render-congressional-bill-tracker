@@ -1,10 +1,10 @@
 """
-Calibrate existing passage models (post-training fix)
+Calibrate existing viability models (fix for missing calibrators)
 
-Issue: Passage models have 80.5% positive rate but weren't calibrated because
-training script only calibrated models with <30% positive rate.
+Issue: Viability models were marked as calibrated but the calibrator objects
+weren't extracted properly due to wrong attribute name (calibrator vs calibrators).
 
-This script applies isotonic calibration to the existing passage models.
+This script applies isotonic calibration to the existing viability models.
 """
 
 import pandas as pd
@@ -18,7 +18,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 print("="*70)
-print("CALIBRATING PASSAGE MODELS (POST-TRAINING FIX)")
+print("CALIBRATING VIABILITY MODELS (FIX FOR MISSING CALIBRATORS)")
 print("="*70)
 print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
@@ -27,45 +27,40 @@ print("\nLoading temporal snapshots dataset...")
 df = pd.read_csv('data/bills_temporal_snapshots.csv')
 print(f"Loaded {len(df)} snapshots")
 
-# Filter to viable bills only (passage models only predict on viable bills)
-df_viable = df[df['viable'] == True].copy()
-print(f"Filtered to {len(df_viable)} viable bill snapshots")
+print(f"\nPositive rate (viable): {df['viable'].mean():.1%}")
 
 # Load metadata
 metadata_package = joblib.load('models/metadata.pkl')
 label_encoders = metadata_package['label_encoders']
 
-print(f"\nPositive rate (passed): {df_viable['passed'].mean():.1%}")
-
-# Engineer features for all viable bills (only those not already in temporal snapshots)
+# Engineer features
 print("\nEngineering features...")
 
-# Encode categorical variables that need encoding
-df_viable['sponsor_party_encoded'] = df_viable['sponsor_party'].map(
+# Encode categorical variables
+df['sponsor_party_encoded'] = df['sponsor_party'].map(
     lambda x: label_encoders['party'].transform([x])[0] if x in label_encoders['party'].classes_ else 0
 )
 
-df_viable['policy_area_encoded'] = df_viable['policy_area'].map(
+df['policy_area_encoded'] = df['policy_area'].map(
     lambda x: label_encoders['policy'].transform([x])[0] if x in label_encoders['policy'].classes_ else 0
 )
 
-# All other features should already exist in the temporal snapshots CSV
-# Just ensure numeric types and fill NaNs
-for col in df_viable.columns:
-    if df_viable[col].dtype in ['float64', 'int64']:
-        df_viable[col] = df_viable[col].fillna(0).replace([np.inf, -np.inf], 0)
+# Fill NaNs
+for col in df.columns:
+    if df[col].dtype in ['float64', 'int64']:
+        df[col] = df[col].fillna(0).replace([np.inf, -np.inf], 0)
 
 print("✅ Features prepared")
 
 # Models to calibrate
-passage_models = ['passage_new_bill', 'passage_early_stage', 'passage_progressive']
+viability_models = ['viability_new_bill', 'viability_early_stage', 'viability_progressive']
 
-for model_name in passage_models:
+for model_name in viability_models:
     print("\n" + "="*70)
     print(f"CALIBRATING: {model_name}")
     print("="*70)
 
-    stage = model_name.replace('passage_', '')
+    stage = model_name.replace('viability_', '')
     model_dir = f'models/{model_name}'
 
     # Load existing model components
@@ -99,14 +94,14 @@ for model_name in passage_models:
     # Filter data by stage
     print(f"Filtering data for {stage} stage...")
     if stage == 'new_bill':
-        stage_df = df_viable[df_viable['days_active'] <= 1].copy()
+        stage_df = df[df['days_active'] <= 1].copy()
     elif stage == 'early_stage':
-        stage_df = df_viable[(df_viable['days_active'] >= 2) & (df_viable['days_active'] <= 30)].copy()
+        stage_df = df[(df['days_active'] >= 2) & (df['days_active'] <= 30)].copy()
     else:  # progressive
-        stage_df = df_viable[df_viable['days_active'] >= 7].copy()
+        stage_df = df[df['days_active'] >= 7].copy()
 
     print(f"Stage data: {len(stage_df)} snapshots")
-    print(f"Positive rate: {stage_df['passed'].mean():.1%}")
+    print(f"Positive rate: {stage_df['viable'].mean():.1%}")
 
     if len(stage_df) < 100:
         print(f"⚠️  WARNING: Not enough data for {stage}, skipping calibration")
@@ -115,7 +110,7 @@ for model_name in passage_models:
     # Prepare features
     print("Preparing features...")
     X = stage_df[features].copy()
-    y = stage_df['passed'].values
+    y = stage_df['viable'].values
 
     # Handle missing values
     X = X.fillna(0)
@@ -168,11 +163,9 @@ for model_name in passage_models:
     for i in range(len(sample_indices)):
         print(f"  {uncalibrated_probs[i]:.1%}   {calibrated_probs[i]:.1%}   {actual_labels[i]}")
 
-    # Save the calibrated model by updating the ensemble config
+    # Save the calibrated model
     print("\nSaving calibrated model...")
 
-    # Save the calibrated ensemble as the main model
-    # We need to save the entire CalibratedClassifierCV object
     calibration_data = {
         'method': 'isotonic',
         'cv': 3,
@@ -197,13 +190,13 @@ for model_name in passage_models:
 
     print(f"✅ Saved calibration data to {model_dir}/calibration.pkl")
     print(f"✅ Updated components.pkl with calibration metadata")
+    print(f"✅ Extracted {len(calibration_data['calibrators'])} calibrators")
 
 print("\n" + "="*70)
-print("CALIBRATION COMPLETE FOR ALL PASSAGE MODELS")
+print("CALIBRATION COMPLETE FOR ALL VIABILITY MODELS")
 print("="*70)
 print(f"Finished: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 print("\nCalibrated models:")
-for model_name in passage_models:
+for model_name in viability_models:
     print(f"  - {model_name}")
-print("\nNote: The app needs to be updated to use the calibration data.")
 print("="*70)

@@ -424,9 +424,10 @@ def save_model_components(model_data, model_type, stage_name):
 
         if hasattr(calibrated_model, 'calibrated_classifiers_'):
             for cal_clf in calibrated_model.calibrated_classifiers_:
-                if hasattr(cal_clf, 'calibrator_'):
+                if hasattr(cal_clf, 'calibrators') and len(cal_clf.calibrators) > 0:
+                    # For isotonic regression in binary classification, there's only one calibrator
                     calibration_data['calibrators'].append({
-                        'calibrator': cal_clf.calibrator_
+                        'calibrator': cal_clf.calibrators[0]
                     })
 
         joblib.dump(calibration_data, f'{model_dir}/calibration.pkl')
