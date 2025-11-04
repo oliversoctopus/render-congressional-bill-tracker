@@ -461,6 +461,9 @@ if bill_input:
 
             return {
                 'model': ensemble,
+                'rf_model': rf_model,
+                'gb_model': components['gb_model'],
+                'lr_model': components['lr_model'],
                 'scaler': components['scaler'],
                 'selector': components['selector'],
                 'features': components['metadata']['features'],
@@ -1107,10 +1110,10 @@ if bill_input:
                 # Historical comparison
                 if show_similar_bills:
                     st.subheader("📚 Historical Comparison")
-                    
+
                     # Get actual pass rate from data if available
-                    pass_rate_data = model_package.get('viability_pass_rates')
-                    pass_rate_fine = model_package.get('viability_pass_rates_fine')
+                    pass_rate_data = metadata.get('viability_pass_rates')
+                    pass_rate_fine = metadata.get('viability_pass_rates_fine')
                     
                     if pass_rate_data is not None and not pass_rate_data.empty:
                         # Find the appropriate bin for this viability score
