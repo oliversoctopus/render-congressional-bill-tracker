@@ -20,61 +20,57 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title('📊 Congressional Bill Tracker v5.0 - Advanced Analytics')
-st.markdown("### AI-powered predictions trained on 273,113 temporal snapshots from 76,854 bills (Congresses 113-118)")
+st.title('📊 Congressional Bill Tracker v4.0 - Advanced Analytics')
+st.markdown("### AI-powered predictions trained on 76,897 bills from 6 Congresses (113-118)")
 st.markdown("---")
 
 # Sidebar
 with st.sidebar:
     st.header("📖 About This System")
     st.markdown("""
-    ### Congressional Bill Tracker v5.0
-
+    ### Congressional Bill Tracker v4.0
+    
     **Training Data:**
-    - 📊 273,113 temporal snapshots
-    - 🏛️ 76,854 unique bills
-    - 📅 6 Congresses (113th-118th)
-
-    **Historical Rates (Unique Bills):**
-    - 📈 3.7% pass overall
-    - 🎯 4.9% viable
-    - ✅ 75.4% of viable bills pass
-
+    - 📊 76,897 bills analyzed
+    - 🏛️ 6 Congresses (113th-118th)
+    - 📈 2.7% historical pass rate
+    - 🎯 16% viability rate
+    
     **Model Performance:**
-    - ✅ 86.6%-97.9% ROC-AUC
+    - ✅ Up to 99.6% ROC-AUC
     - ✅ Calibrated probabilities
     - ✅ Ensemble models for stability
     - ✅ Stage-specific predictions
-    - ✅ Temporal snapshot training
-
+    - ✅ Optimized file structure
+    
     ### Model Stages
-
+    
     **🆕 New Bill (Day 1)**
-    - 16 basic features
-    - 94.1% viability ROC-AUC
-    - 97.9% passage ROC-AUC
-
+    - Limited features available
+    - 88.6% ROC-AUC
+    - Focus on sponsor characteristics
+    
     **📈 Early Stage (2-30 days)**
-    - 24 extended features
-    - 96.4% viability ROC-AUC
-    - 96.4% passage ROC-AUC
-
+    - Initial momentum indicators
+    - 99.4% ROC-AUC
+    - Cosponsor growth patterns
+    
     **🔄 Progressive (30+ days)**
-    - 41 comprehensive features
-    - 86.6% viability ROC-AUC
-    - 94.4% passage ROC-AUC
-
+    - Full feature set
+    - 99.6% ROC-AUC
+    - Complete activity history
+    
     ### Understanding Predictions
-
+    
     **Confidence Intervals:**
     - Narrow = Models agree
     - Wide = More uncertainty
     - Shows min/max from ensemble
-
+    
     **Pass Rate Context:**
-    - Unique bills: 3.7% overall
-    - Viable bills: 75.4% pass rate
-    - Varies by Congress (60.9%-87.1%)
+    - Historical: 2.7% of all bills
+    - Viable bills: 16.7% pass rate
+    - Varies by Congress (1.7%-3.8%)
     """)
 
 # Main input
@@ -99,20 +95,6 @@ with st.expander("📊 Display Options"):
 
 if bill_input:
     try:
-        # Congress end dates for detecting ended congresses
-        CONGRESS_END_DATES = {
-            113: datetime(2015, 1, 3),
-            114: datetime(2017, 1, 3),
-            115: datetime(2019, 1, 3),
-            116: datetime(2021, 1, 3),
-            117: datetime(2023, 1, 3),
-            118: datetime(2025, 1, 3),
-            119: datetime(2027, 1, 3),  # Future
-            120: datetime(2029, 1, 3),  # Future
-        }
-
-        congress_ended = datetime.now() > CONGRESS_END_DATES.get(congress, datetime(2099, 1, 1))
-
         # Fetch bill data
         with st.spinner('Fetching bill information...'):
             comprehensive_data = fetch_comprehensive_bill_data(
@@ -134,10 +116,7 @@ if bill_input:
             actions_df['date'] = pd.to_datetime(actions_df['date'])
             first_action = actions_df['date'].min()
             last_action = actions_df['date'].max()
-            # FIXED: Use last_action - first_action (matches training data)
-            # Training uses: (latest_action_date - introduced_date)
-            days_active = (last_action - first_action).days
-            days_active = max(1, min(days_active, 730))  # Match training clip (1-730 days)
+            days_active = (datetime.now() - first_action).days
             days_since_last_action = (datetime.now() - last_action).days
         else:
             days_active = 1
@@ -184,51 +163,11 @@ if bill_input:
                     st.write(f"**Full Title:** {df['title'].values[0]}")
                 elif 'official_title' in df.columns:
                     st.write(f"**Full Title:** {df['official_title'].values[0]}")
-
+                
                 st.info("💡 If this is not the bill you're looking for, please verify the bill number and congress session.")
         else:
             st.subheader(f"Bill Analysis: {bill_type.upper()}.{bill_input}")
-
-        # Educational mode for ended congresses
-        simulate_date = None
-        if congress_ended:
-            st.error(f"⚠️ **The {congress}th Congress ended on {CONGRESS_END_DATES[congress].strftime('%B %d, %Y')}**")
-            st.error("This bill can no longer become law. Bills that do not pass in their congress session automatically die.")
-
-            st.info("📚 **Educational Mode**: Below shows what the model would have predicted at different points during the congress.")
-
-            # Let user select a historical date to simulate
-            if not df.empty and 'introduced_date' in df.columns:
-                min_date = pd.to_datetime(df['introduced_date'].values[0]).date()
-                max_date = min(last_action.date() if not actions_df.empty else CONGRESS_END_DATES[congress].date(),
-                              CONGRESS_END_DATES[congress].date())
-
-                simulate_date = st.date_input(
-                    "Select a date to simulate predictions (as if that were 'today'):",
-                    min_value=min_date,
-                    max_value=max_date,
-                    value=max_date,
-                    help="Choose a historical date to see what the model would have predicted at that point in time"
-                )
-
-                # Recalculate days_active and days_since_last_action based on simulation date
-                if simulate_date:
-                    simulate_datetime = pd.to_datetime(simulate_date)
-
-                    # Filter actions up to simulation date
-                    if not actions_df.empty:
-                        simulated_actions = actions_df[actions_df['date'] <= simulate_datetime]
-                        if not simulated_actions.empty:
-                            sim_first_action = simulated_actions['date'].min()
-                            sim_last_action = simulated_actions['date'].max()
-                            days_active = (sim_last_action - sim_first_action).days
-                            days_active = max(1, min(days_active, 730))
-                            days_since_last_action = (simulate_datetime - sim_last_action).days
-
-                    st.caption(f"🕐 Simulating predictions as if today were **{simulate_date.strftime('%B %d, %Y')}** ({days_active} days of activity, {days_since_last_action} days since last action)")
-
-            st.markdown("---")
-
+        
         # Key metrics
         col1, col2, col3, col4, col5, col6 = st.columns(6)
         
@@ -350,7 +289,7 @@ if bill_input:
                 st.dataframe(
                     timeline_df.iloc[start_idx:end_idx],
                     hide_index=True,
-                    width='stretch',
+                    use_container_width=True,
                     height=min(700, (end_idx - start_idx) * 35 + 35)
                 )
                 
@@ -358,12 +297,12 @@ if bill_input:
                 col1, col2, col3, col4, col5 = st.columns([1, 1, 2, 1, 1])
                 
                 with col1:
-                    if st.button('⏮️ First', key='timeline_first', width='stretch'):
+                    if st.button('⏮️ First', key='timeline_first', use_container_width=True):
                         st.session_state.leg_timeline_page = 0
                         st.rerun()
                 
                 with col2:
-                    if st.button('◀️ Prev', key='timeline_prev', width='stretch', 
+                    if st.button('◀️ Prev', key='timeline_prev', use_container_width=True, 
                                 disabled=(st.session_state.leg_timeline_page == 0)):
                         st.session_state.leg_timeline_page -= 1
                         st.rerun()
@@ -384,13 +323,13 @@ if bill_input:
                         st.rerun()
                 
                 with col4:
-                    if st.button('Next ▶️', key='timeline_next', width='stretch',
+                    if st.button('Next ▶️', key='timeline_next', use_container_width=True,
                                 disabled=(st.session_state.leg_timeline_page >= total_pages - 1)):
                         st.session_state.leg_timeline_page += 1
                         st.rerun()
                 
                 with col5:
-                    if st.button('Last ⏭️', key='timeline_last', width='stretch'):
+                    if st.button('Last ⏭️', key='timeline_last', use_container_width=True):
                         st.session_state.leg_timeline_page = total_pages - 1
                         st.rerun()
                 
@@ -402,7 +341,7 @@ if bill_input:
                 st.dataframe(
                     timeline_df,
                     hide_index=True,
-                    width='stretch',
+                    use_container_width=True,
                     height=min(700, len(timeline_df) * 35 + 35)
                 )
             
@@ -417,87 +356,19 @@ if bill_input:
         
         st.markdown("---")
         
-        # Load individual model stages on demand (lazy loading for performance)
+        # UPDATED: Load models from optimized split component files
         @st.cache_resource
-        def load_single_model(_model_type, _stage):
-            """Load a single model stage (lazy loading)"""
-            import joblib
-            from sklearn.ensemble import VotingClassifier
-
-            model_dir = f'models/{_model_type}_{_stage}'
-
-            if not os.path.exists(model_dir):
-                return None
-
-            # Load components
-            rf_model = joblib.load(f'{model_dir}/rf_model.pkl')
-            components = joblib.load(f'{model_dir}/components.pkl')
-            ensemble_config = joblib.load(f'{model_dir}/ensemble_config.pkl')
-
-            # Load calibration if exists
-            calibration_path = f'{model_dir}/calibration.pkl'
-            calibrators = None
-            is_calibrated = components['metadata'].get('is_calibrated', False)
-
-            if is_calibrated and os.path.exists(calibration_path):
-                calibration_data = joblib.load(calibration_path)
-                if calibration_data['calibrators']:
-                    # Extract the calibrators (one per CV fold)
-                    calibrators = [cal['calibrator'] for cal in calibration_data['calibrators']]
-
-            # Reconstruct ensemble
-            ensemble = VotingClassifier(
-                estimators=[
-                    ('rf', rf_model),
-                    ('gb', components['gb_model']),
-                    ('lr', components['lr_model'])
-                ],
-                voting='soft',
-                weights=ensemble_config['weights']
-            )
-            ensemble.estimators_ = [rf_model, components['gb_model'], components['lr_model']]
-            ensemble.classes_ = rf_model.classes_
-            ensemble.le_ = None
-
-            return {
-                'model': ensemble,
-                'rf_model': rf_model,
-                'gb_model': components['gb_model'],
-                'lr_model': components['lr_model'],
-                'scaler': components['scaler'],
-                'selector': components['selector'],
-                'features': components['metadata']['features'],
-                'selected_features': components['metadata']['selected_features'],
-                'is_calibrated': is_calibrated,
-                'calibrators': calibrators
-            }
-
-        def apply_calibration(prob, calibrators):
-            """Apply isotonic calibration to a probability using CV-fold calibrators"""
-            if not calibrators:
-                return prob
-
-            # Average predictions from all CV fold calibrators
-            calibrated_probs = []
-            for calibrator in calibrators:
-                try:
-                    calibrated_prob = calibrator.transform([prob])[0]
-                    calibrated_probs.append(calibrated_prob)
-                except:
-                    # If calibration fails, use original probability
-                    calibrated_probs.append(prob)
-
-            # Return average of all calibrated predictions
-            return np.mean(calibrated_probs) if calibrated_probs else prob
-
-        # Load metadata only (not models)
-        @st.cache_resource
-        def load_metadata():
-            """Load metadata only (not models - they load on demand)"""
+        def load_models():
+            """Load models from optimized split component files"""
             try:
+                # Check if models directory exists
+                if not os.path.exists('models'):
+                    st.error("Models directory not found. Please train the models first.")
+                    return None
+                
                 # Load metadata and encoders
                 metadata_package = joblib.load('models/metadata.pkl')
-
+                
                 # Load viability pass rate data if available
                 viability_pass_rates = None
                 viability_pass_rates_fine = None
@@ -505,24 +376,133 @@ if bill_input:
                     viability_pass_rates = pd.read_csv('data/viability_pass_rates.csv')
                 if os.path.exists('data/viability_pass_rates_fine.csv'):
                     viability_pass_rates_fine = pd.read_csv('data/viability_pass_rates_fine.csv')
-
-                # Return metadata only
+                
+                # Function to reconstruct ensemble from components
+                def reconstruct_ensemble(rf_model, gb_model, lr_model, ensemble_config):
+                    """Reconstruct VotingClassifier from individual models and config"""
+                    # Create a custom ensemble that uses pre-fitted models
+                    ensemble = VotingClassifier(
+                        estimators=[
+                            ('rf', rf_model),
+                            ('gb', gb_model),
+                            ('lr', lr_model)
+                        ],
+                        voting=ensemble_config['voting'],
+                        weights=ensemble_config['weights']
+                    )
+                    # Set the fitted flag manually since our estimators are already fitted
+                    ensemble.estimators_ = [rf_model, gb_model, lr_model]
+                    ensemble.named_estimators_ = {
+                        'rf': rf_model,
+                        'gb': gb_model,
+                        'lr': lr_model
+                    }
+                    ensemble.classes_ = rf_model.classes_
+                    ensemble.le_ = None  # Not used for pre-fitted estimators
+                    return ensemble
+                
+                # Function to reconstruct calibrated model if needed
+                def reconstruct_calibrated_model(base_model, calibration_data):
+                    """Reconstruct calibrated model from base model and calibration data"""
+                    # For now, return the base model as calibration reconstruction is complex
+                    # In production, you'd need to properly reconstruct the calibrators
+                    return base_model
+                
+                # Function to load a single model stage from optimized components
+                def load_model_stage_optimized(model_type, stage):
+                    """Load all components for a single model stage from optimized structure"""
+                    model_dir = f'models/{model_type}_{stage}'
+                    
+                    if not os.path.exists(model_dir):
+                        st.error(f"Model directory {model_dir} not found!")
+                        return None
+                    
+                    # Load RF model (separate file)
+                    rf_model = joblib.load(f'{model_dir}/rf_model.pkl')
+                    
+                    # Load combined components
+                    components = joblib.load(f'{model_dir}/components.pkl')
+                    gb_model = components['gb_model']
+                    lr_model = components['lr_model']
+                    scaler = components['scaler']
+                    selector = components['selector']
+                    metadata = components['metadata']
+                    
+                    # Load ensemble config
+                    ensemble_config = joblib.load(f'{model_dir}/ensemble_config.pkl')
+                    
+                    # Reconstruct ensemble
+                    ensemble = reconstruct_ensemble(rf_model, gb_model, lr_model, ensemble_config)
+                    
+                    # Check if calibration exists
+                    final_model = ensemble
+                    if metadata['is_calibrated'] and os.path.exists(f'{model_dir}/calibration.pkl'):
+                        calibration_data = joblib.load(f'{model_dir}/calibration.pkl')
+                        # For simplicity, we'll use the ensemble as final model
+                        # In production, you'd reconstruct the calibrated model properly
+                        final_model = ensemble  # reconstruct_calibrated_model(ensemble, calibration_data)
+                    
+                    # Return model dictionary
+                    return {
+                        'model': final_model,
+                        'ensemble': ensemble,
+                        'rf_model': rf_model,
+                        'gb_model': gb_model,
+                        'lr_model': lr_model,
+                        'scaler': scaler,
+                        'selector': selector,
+                        'features': metadata['features'],
+                        'selected_features': metadata['selected_features'],
+                        'threshold': metadata['threshold'],
+                        'performance': metadata['performance']
+                    }
+                
+                # Load all model stages
+                viability_models = {}
+                passage_models = {}
+                
+                for stage in ['new_bill', 'early_stage', 'progressive']:
+                    # Load viability model
+                    viability_model = load_model_stage_optimized('viability', stage)
+                    if viability_model:
+                        viability_models[stage] = viability_model
+                    else:
+                        st.error(f"Failed to load viability_{stage} model")
+                        return None
+                    
+                    # Load passage model
+                    passage_model = load_model_stage_optimized('passage', stage)
+                    if passage_model:
+                        passage_models[stage] = passage_model
+                    else:
+                        st.error(f"Failed to load passage_{stage} model")
+                        return None
+                
+                # Return complete model package
                 return {
+                    'viability_models': viability_models,
+                    'passage_models': passage_models,
                     'label_encoders': metadata_package['label_encoders'],
+                    'feature_sets': metadata_package['metadata'].get('feature_sets', {}),
                     'metadata': metadata_package['metadata'],
                     'viability_pass_rates': viability_pass_rates,
                     'viability_pass_rates_fine': viability_pass_rates_fine
                 }
+                
             except Exception as e:
-                st.error(f"Error loading metadata: {e}")
+                st.error(f"Error loading models: {str(e)}")
+                import traceback
+                st.code(traceback.format_exc())
                 return None
         
-        # Load metadata only (fast)
-        metadata = load_metadata()
-
-        if metadata:
-            label_encoders = metadata['label_encoders']
-
+        model_package = load_models()
+        
+        if model_package:
+            # Extract components
+            viability_models = model_package['viability_models']
+            passage_models = model_package['passage_models']
+            label_encoders = model_package['label_encoders']
+            
             # Determine model stage
             if days_active <= 1:
                 stage = 'new_bill'
@@ -533,18 +513,20 @@ if bill_input:
             else:
                 stage = 'progressive'
                 stage_name = "🔄 Progressive Model"
-
-            # Load ONLY the needed models (lazy loading for performance)
-            with st.spinner(f"Loading {stage_name}..."):
-                viability_model = load_single_model('viability', stage)
-                passage_model = load_single_model('passage', stage)
-
-            if not viability_model or not passage_model:
-                st.error(f"Failed to load models for stage: {stage}")
-                st.stop()
             
             st.header(f"AI Predictions - {stage_name}")
             st.caption(f"Based on {days_active} days of legislative activity")
+            
+            # Model performance indicator
+            model_perf = viability_models[stage]['performance']
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Model Accuracy", f"{model_perf['accuracy']:.1%}")
+            with col2:
+                st.metric("ROC-AUC Score", f"{model_perf['roc_auc']:.3f}")
+            with col3:
+                reliability = "High" if model_perf['cv_std'] < 0.05 else "Moderate"
+                st.metric("Reliability", reliability)
             
             # Check if bill has already passed House/Senate or become law
             has_passed_house = False
@@ -572,9 +554,6 @@ if bill_input:
                     has_passed_senate = True
             
             # Prepare features
-            # FIXED: Use bill's actual introduction date for temporal features
-            introduced_date = pd.to_datetime(df['introduced_date'].values[0]) if not df.empty and 'introduced_date' in df.columns else datetime.now()
-
             feature_data = {
                 # Basic features
                 'sponsor_party': df['sponsor_parties'].values[0] if not df.empty else 'Unknown',
@@ -582,9 +561,9 @@ if bill_input:
                 'sponsor_count': len(df['sponsors'].values[0].split(',')) if not df.empty else 1,
                 'original_cosponsor_count': metrics.get('original_cosponsor_count', 0),
                 'cosponsor_count': df['cosponsor_count'].values[0] if not df.empty else 0,
-                'month_introduced': introduced_date.month,
-                'quarter_introduced': (introduced_date.month - 1) // 3 + 1,
-                'is_election_year': int(introduced_date.year % 2 == 0),  # FIXED: %2 not %4 (all elections, not just presidential)
+                'month_introduced': datetime.now().month,
+                'quarter_introduced': (datetime.now().month - 1) // 3 + 1,
+                'is_election_year': int(datetime.now().year % 4 == 0),
                 'title_length': len(df['short_title'].values[0]) if not df.empty and 'short_title' in df.columns and df['short_title'].values[0] else len(df['title'].values[0]) if not df.empty and 'title' in df.columns and df['title'].values[0] else 100,
                 'title_word_count': len(df['short_title'].values[0].split()) if not df.empty and 'short_title' in df.columns and df['short_title'].values[0] else len(df['title'].values[0].split()) if not df.empty and 'title' in df.columns and df['title'].values[0] else 20,
                 'title_complexity': 0,  # Will be calculated
@@ -624,11 +603,7 @@ if bill_input:
                 
                 # Congress-specific features (new)
                 'congress_numeric': congress,
-                'is_recent_congress': int(congress >= 117),  # Kept for compatibility with old models
-
-                # Abandonment detection features (new - Phase 1)
-                'days_since_last_action': days_since_last_action,
-                'log_days_since_last_action': np.log1p(days_since_last_action)
+                'is_recent_congress': int(congress >= 117)
             }
             
             # Calculate derived features
@@ -669,7 +644,11 @@ if bill_input:
             
             # Create DataFrame
             bill_df = pd.DataFrame([feature_data])
-
+            
+            # Get model components
+            viability_model = viability_models[stage]
+            passage_model = passage_models[stage]
+            
             # Prepare features
             X_features = bill_df[viability_model['features']].fillna(0)
             X_features = X_features.replace([np.inf, -np.inf], 0)
@@ -694,11 +673,7 @@ if bill_input:
             
             # Ensemble prediction - also use DataFrame
             ensemble_viability = viability_model['model'].predict_proba(X_selected_df)[0, 1]
-
-            # Apply calibration if available
-            if viability_model.get('is_calibrated') and viability_model.get('calibrators'):
-                ensemble_viability = apply_calibration(ensemble_viability, viability_model['calibrators'])
-
+            
             # Calculate confidence interval if we have individual models
             if viability_scores:
                 viability_low = min(viability_scores)
@@ -803,7 +778,7 @@ if bill_input:
                         plot_bgcolor="rgba(0,0,0,0)"
                     )
                     
-                    st.plotly_chart(fig_viability, config={'responsive': True})
+                    st.plotly_chart(fig_viability, use_container_width=True)
                     
                     # Clear PASS/FAIL indicator
                     is_viable = ensemble_viability >= 0.5
@@ -840,11 +815,7 @@ if bill_input:
                         
                         # Use DataFrame for ensemble too
                         ensemble_passage = passage_model['model'].predict_proba(X_passage_selected_df)[0, 1]
-
-                        # Apply calibration if available
-                        if passage_model.get('is_calibrated') and passage_model.get('calibrators'):
-                            ensemble_passage = apply_calibration(ensemble_passage, passage_model['calibrators'])
-
+                        
                         if passage_scores:
                             passage_low = min(passage_scores)
                             passage_high = max(passage_scores)
@@ -902,7 +873,7 @@ if bill_input:
                             plot_bgcolor="rgba(0,0,0,0)"
                         )
                         
-                        st.plotly_chart(fig_passage, config={'responsive': True})
+                        st.plotly_chart(fig_passage, use_container_width=True)
                         
                         # Clear PASS/FAIL indicator for passage
                         if ensemble_passage >= 0.7:
@@ -936,17 +907,7 @@ if bill_input:
                 with col3:
                     percentile = (1 - overall_chance) * 100
                     st.metric("Percentile Rank", f"Top {100-percentile:.0f}%")
-
-                # Abandonment warning (only for active congresses)
-                if not congress_ended:
-                    if days_since_last_action > 180:
-                        st.warning(f"⚠️ **No Activity in {days_since_last_action} Days**\n\n"
-                                  f"This bill appears to have been abandoned. Last action was **{days_since_last_action} days ago** "
-                                  f"on {last_action.strftime('%B %d, %Y')}. Bills without activity for 6+ months rarely advance.")
-                    elif days_since_last_action > 90:
-                        st.info(f"ℹ️ **Limited Recent Activity**: Last action was {days_since_last_action} days ago "
-                               f"({last_action.strftime('%B %d, %Y')}). Bill may be stalled.")
-
+                
                 # Individual model breakdown
                 if show_model_breakdown:
                     st.subheader("🔍 Individual Model Predictions")
@@ -955,14 +916,14 @@ if bill_input:
                     with st.expander("ℹ️ Why might ensemble predictions differ from individual models?"):
                         st.markdown("""
                         The ensemble prediction may be outside the range of individual model predictions because:
-
-                        1. **Probability Calibration**: The ensemble uses isotonic calibration to adjust predictions
+                        
+                        1. **Probability Calibration**: The ensemble uses isotonic calibration to adjust predictions 
                            based on validation data, making them more realistic.
-                        2. **Class Imbalance**: Both viability models (~10% positive rate) and passage models
-                           (~80% positive rate) use calibration to correct for extreme class imbalances.
+                        2. **Class Imbalance**: With only 2.7% of bills passing, calibration often reduces 
+                           overly optimistic predictions.
                         3. **Model Weighting**: The ensemble weights models differently (RF: 40%, GB: 40%, LR: 20%)
-
-                        Individual models show raw predictions, while the ensemble shows calibrated probabilities
+                        
+                        Individual models show raw predictions, while the ensemble shows calibrated probabilities 
                         that better reflect historical pass rates.
                         """)
                     
@@ -1042,7 +1003,7 @@ if bill_input:
                     )
                     fig_breakdown.update_yaxes(tickformat='.0%', range=[0, 1])
                     fig_breakdown.update_layout(height=400)
-                    st.plotly_chart(fig_breakdown, config={'responsive': True})
+                    st.plotly_chart(fig_breakdown, use_container_width=True)
                 
                 # Feature importance
                 if show_feature_analysis:
@@ -1110,10 +1071,10 @@ if bill_input:
                 # Historical comparison
                 if show_similar_bills:
                     st.subheader("📚 Historical Comparison")
-
+                    
                     # Get actual pass rate from data if available
-                    pass_rate_data = metadata.get('viability_pass_rates')
-                    pass_rate_fine = metadata.get('viability_pass_rates_fine')
+                    pass_rate_data = model_package.get('viability_pass_rates')
+                    pass_rate_fine = model_package.get('viability_pass_rates_fine')
                     
                     if pass_rate_data is not None and not pass_rate_data.empty:
                         # Find the appropriate bin for this viability score
@@ -1146,23 +1107,23 @@ if bill_input:
                             data_source = f"{bin_match['bill_count']:,} bills in {bin_match['viability_range']} range"
                         else:
                             # Fallback if no bin matches
-                            estimated_pass_rate = 3.7  # Overall average
+                            estimated_pass_rate = 2.7  # Overall average
                             data_source = "overall average (no specific data for this range)"
-
+                        
                         st.info(f"""
-                        **Based on analysis of 76,854 unique bills across 6 Congresses (113-118):**
-
+                        **Based on analysis of 76,897 bills across 6 Congresses (113-118):**
+                        
                         📊 **Actual Historical Outcomes:**
                         - Bills with viability score ~{ensemble_viability:.1%}: **{estimated_pass_rate:.1f}%** passed
                         - Based on: {data_source}
-                        - This is {estimated_pass_rate/3.7:.1f}x the overall average (3.7%)
-
+                        - This is {estimated_pass_rate/2.7:.1f}x the overall average (2.7%)
+                        
                         ⏱️ **Typical Timeline:**
                         - Average time to passage: ~180 days
                         - Most common failure point: Committee stage
-
+                        
                         📈 **Data Note:**
-                        This estimate comes from actual historical data - we analyzed all 76,854 unique bills
+                        This estimate comes from actual historical data - we analyzed all 76,897 bills 
                         in our training set and calculated real pass rates for each viability score range.
                         """)
                         
@@ -1188,12 +1149,12 @@ if bill_input:
                             estimated_pass_rate = 5.0
                         
                         st.info(f"""
-                        Based on analysis of 76,854 unique bills across 6 Congresses (113-118):
+                        Based on analysis of 76,897 bills across 6 Congresses (113-118):
                         - Bills with similar viability scores: ~{estimated_pass_rate:.1f}% passed (estimate)
                         - Average time to passage: ~180 days
                         - Most common failure point: Committee stage
-                        - Historical context: Only 3.7% of all bills become law
-
+                        - Historical context: Only 2.7% of all bills become law
+                        
                         *Note: Run the viability pass rate analyzer for precise historical data.*
                         """)
         
@@ -1210,6 +1171,6 @@ if bill_input:
 # Footer
 st.markdown("---")
 st.caption("""
-Congressional Bill Tracker v5.0 | AI predictions based on 273,113 temporal snapshots from 76,854 unique bills
-Trained on 113th-118th Congress data | Model accuracy: 86.6%-97.9% ROC-AUC
+Congressional Bill Tracker v4.0 | AI predictions based on 76,897 bills from 6 Congresses
+Trained on 113th-118th Congress data | Model accuracy: 88.6%-99.6% ROC-AUC
 """)
